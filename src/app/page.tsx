@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,9 @@ import {
   Play,
   Sparkles,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  Flag,
+  Bookmark
 } from "lucide-react";
 
 // بيانات الامتحان
@@ -80,17 +82,19 @@ const calculateCorrectAnswer = (numbers: number[]): number => {
 };
 
 // مكون حقل الإدخال الرقمي
-function NumberInput({ 
+const NumberInput = ({ 
   value, 
   onChange,
   onKeyDown,
-  size = "normal"
+  size = "normal",
+  inputRef
 }: { 
   value: string; 
   onChange: (value: string) => void;
   onKeyDown?: (e: React.KeyboardEvent) => void;
   size?: "small" | "normal" | "large";
-}) {
+  inputRef?: React.RefObject<HTMLInputElement | null>;
+}) => {
   const sizeClasses = {
     small: "w-16 h-10 text-base",
     normal: "w-20 h-12 text-lg",
@@ -99,6 +103,7 @@ function NumberInput({
 
   return (
     <Input
+      ref={inputRef}
       type="text"
       inputMode="numeric"
       pattern="[0-9\-]*"
@@ -115,7 +120,7 @@ function NumberInput({
       autoComplete="off"
     />
   );
-}
+};
 
 export default function ExamPage() {
   const [examStarted, setExamStarted] = useState(false);
@@ -123,6 +128,10 @@ export default function ExamPage() {
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [activeSection, setActiveSection] = useState(0);
   const [activeQuestion, setActiveQuestion] = useState(0);
+  const [markedQuestions, setMarkedQuestions] = useState<Set<number>>(new Set());
+
+  // مرجع لحقل الإدخال
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // الإجابات
   const [multiplicationAnswers, setMultiplicationAnswers] = useState<string[]>(Array(10).fill(""));
@@ -158,9 +167,25 @@ export default function ExamPage() {
     return total + activeQuestion + 1;
   };
 
+  const getCurrentGlobalIndex = () => {
+    let total = 0;
+    for (let i = 0; i < activeSection; i++) {
+      total += sections[i].questions;
+    }
+    return total + activeQuestion;
+  };
+
   const isLastQuestion = () => getCurrentQuestionNumber() === getTotalQuestions();
 
+  // إخفاء لوحة المفاتيح
+  const hideKeyboard = () => {
+    if (inputRef.current) {
+      inputRef.current.blur();
+    }
+  };
+
   const navigateNext = () => {
+    hideKeyboard();
     if (activeQuestion < sections[activeSection].questions - 1) {
       setActiveQuestion(activeQuestion + 1);
     } else if (activeSection < sections.length - 1) {
@@ -170,12 +195,43 @@ export default function ExamPage() {
   };
 
   const navigatePrev = () => {
+    hideKeyboard();
     if (activeQuestion > 0) {
       setActiveQuestion(activeQuestion - 1);
     } else if (activeSection > 0) {
       setActiveSection(activeSection - 1);
       setActiveQuestion(sections[activeSection - 1].questions - 1);
     }
+  };
+
+  // تبديل علامة المراجعة
+  const toggleMark = () => {
+    const globalIndex = getCurrentGlobalIndex();
+    setMarkedQuestions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(globalIndex)) {
+        newSet.delete(globalIndex);
+      } else {
+        newSet.add(globalIndex);
+      }
+      return newSet;
+    });
+  };
+
+  // الانتقال لسؤال معين
+  const goToQuestion = (globalIndex: number) => {
+    hideKeyboard();
+    let section = 0;
+    let question = globalIndex;
+    for (let s = 0; s < sections.length; s++) {
+      if (question < sections[s].questions) {
+        section = s;
+        break;
+      }
+      question -= sections[s].questions;
+    }
+    setActiveSection(section);
+    setActiveQuestion(question);
   };
 
   // المؤقت التصاعدي
@@ -234,6 +290,7 @@ export default function ExamPage() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
+      hideKeyboard();
       if (isLastQuestion()) {
         handleFinishExam();
       } else {
@@ -269,6 +326,7 @@ export default function ExamPage() {
     setResults(null);
     setActiveSection(0);
     setActiveQuestion(0);
+    setMarkedQuestions(new Set());
   };
 
   // صفحة البداية
@@ -296,6 +354,10 @@ export default function ExamPage() {
               <div className="flex items-center gap-3 p-3 bg-cyan-50 rounded-lg">
                 <Trophy className="w-5 h-5 text-cyan-600 shrink-0" />
                 <span className="text-gray-700 text-sm">الأقسام: <strong>5 أقسام</strong></span>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg">
+                <Bookmark className="w-5 h-5 text-amber-600 shrink-0" />
+                <span className="text-gray-700 text-sm">يمكنك <strong>تعليم الأسئلة</strong> للمراجعة</span>
               </div>
             </div>
 
@@ -456,10 +518,24 @@ export default function ExamPage() {
       <main className="flex-1 flex items-center justify-center p-4 overflow-hidden">
         <Card className="w-full max-w-md shadow-xl border-0">
           <CardHeader className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-t-lg py-3">
-            <CardTitle className="flex items-center justify-center gap-2 text-base">
-              <Badge className="bg-white/20 text-white text-sm px-3 py-0.5">
-                سؤال {activeQuestion + 1}
-              </Badge>
+            <CardTitle className="flex items-center justify-between text-base px-2">
+              <div className="flex items-center gap-2">
+                <Badge className="bg-white/20 text-white text-sm px-3 py-0.5">
+                  سؤال {activeQuestion + 1}
+                </Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={toggleMark}
+                className={`h-8 w-8 p-0 rounded-full ${
+                  markedQuestions.has(getCurrentGlobalIndex()) 
+                    ? "bg-amber-400 text-white hover:bg-amber-500" 
+                    : "bg-white/20 text-white hover:bg-white/30"
+                }`}
+              >
+                <Flag className="w-4 h-4" />
+              </Button>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4">
@@ -474,6 +550,7 @@ export default function ExamPage() {
                   setMultiplicationAnswers(newAnswers);
                 }}
                 onKeyDown={handleKeyDown}
+                inputRef={inputRef}
               />
             )}
 
@@ -488,6 +565,7 @@ export default function ExamPage() {
                   setAbacusAnswers1(newAnswers);
                 }}
                 onKeyDown={handleKeyDown}
+                inputRef={inputRef}
               />
             )}
 
@@ -502,6 +580,7 @@ export default function ExamPage() {
                   setAbacusAnswers2(newAnswers);
                 }}
                 onKeyDown={handleKeyDown}
+                inputRef={inputRef}
               />
             )}
 
@@ -516,6 +595,7 @@ export default function ExamPage() {
                   setMentalAnswers(newAnswers);
                 }}
                 onKeyDown={handleKeyDown}
+                inputRef={inputRef}
               />
             )}
 
@@ -530,6 +610,7 @@ export default function ExamPage() {
                   setAdditionalAnswers(newAnswers);
                 }}
                 onKeyDown={handleKeyDown}
+                inputRef={inputRef}
               />
             )}
           </CardContent>
@@ -556,7 +637,7 @@ export default function ExamPage() {
                 className="bg-emerald-600 hover:bg-emerald-700 h-11 px-4 text-sm flex-1"
               >
                 <CheckCircle2 className="w-4 h-4 mr-1" />
-                إنهاء الامتحان
+                إنهاء
               </Button>
             ) : (
               <Button
@@ -572,34 +653,56 @@ export default function ExamPage() {
           {/* نقاط التنقل */}
           <div className="flex justify-center gap-1 mt-2 flex-wrap">
             {Array.from({ length: getTotalQuestions() }).map((_, i) => {
-              const currentGlobal = getCurrentQuestionNumber() - 1;
+              const currentGlobal = getCurrentGlobalIndex();
+              const isMarked = markedQuestions.has(i);
+              const hasAnswer = (() => {
+                let section = 0;
+                let question = i;
+                for (let s = 0; s < sections.length; s++) {
+                  if (question < sections[s].questions) {
+                    section = s;
+                    break;
+                  }
+                  question -= sections[s].questions;
+                }
+                if (section === 0) return multiplicationAnswers[question] !== "";
+                if (section === 1) return abacusAnswers1[question] !== "";
+                if (section === 2) return abacusAnswers2[question] !== "";
+                if (section === 3) return mentalAnswers[question] !== "";
+                return additionalAnswers[question] !== "";
+              })();
+
               return (
                 <button
                   key={i}
-                  onClick={() => {
-                    let section = 0;
-                    let question = i;
-                    for (let s = 0; s < sections.length; s++) {
-                      if (question < sections[s].questions) {
-                        section = s;
-                        break;
-                      }
-                      question -= sections[s].questions;
-                    }
-                    setActiveSection(section);
-                    setActiveQuestion(question);
-                  }}
-                  className={`w-1.5 h-1.5 rounded-full transition-all ${
+                  onClick={() => goToQuestion(i)}
+                  className={`relative w-2 h-2 rounded-full transition-all ${
                     i === currentGlobal
                       ? "bg-emerald-600 w-3"
-                      : i < currentGlobal
-                        ? "bg-emerald-300"
-                        : "bg-gray-300"
+                      : isMarked
+                        ? "bg-amber-400"
+                        : hasAnswer
+                          ? "bg-emerald-300"
+                          : "bg-gray-300"
                   }`}
-                />
+                >
+                  {isMarked && i !== currentGlobal && (
+                    <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                  )}
+                </button>
               );
             })}
           </div>
+
+          {/* الأسئلة المعلمة */}
+          {markedQuestions.size > 0 && (
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <Flag className="w-3 h-3 text-amber-500" />
+              <span className="text-xs text-gray-500">
+                {markedQuestions.size} سؤال للمراجعة
+              </span>
+            </div>
+          )}
         </div>
       </footer>
     </div>
@@ -611,12 +714,14 @@ function MultiplicationQuestion({
   problem, 
   answer, 
   onAnswer,
-  onKeyDown
+  onKeyDown,
+  inputRef
 }: { 
   problem: { num1: number; num2: number };
   answer: string;
   onAnswer: (val: string) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
     <div className="text-center">
@@ -634,6 +739,7 @@ function MultiplicationQuestion({
             onChange={onAnswer}
             onKeyDown={onKeyDown}
             size="large"
+            inputRef={inputRef}
           />
         </div>
       </div>
@@ -646,12 +752,14 @@ function AbacusQuestion({
   column, 
   answer, 
   onAnswer,
-  onKeyDown
+  onKeyDown,
+  inputRef
 }: { 
   column: { id: number; numbers: number[] };
   answer: string;
   onAnswer: (val: string) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
     <div className="text-center">
@@ -679,6 +787,7 @@ function AbacusQuestion({
             onChange={onAnswer}
             onKeyDown={onKeyDown}
             size="large"
+            inputRef={inputRef}
           />
         </div>
       </div>
@@ -691,12 +800,14 @@ function MentalQuestion({
   column, 
   answer, 
   onAnswer,
-  onKeyDown
+  onKeyDown,
+  inputRef
 }: { 
   column: { id: number; numbers: number[] };
   answer: string;
   onAnswer: (val: string) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
     <div className="text-center">
@@ -724,6 +835,7 @@ function MentalQuestion({
             onChange={onAnswer}
             onKeyDown={onKeyDown}
             size="large"
+            inputRef={inputRef}
           />
         </div>
       </div>
