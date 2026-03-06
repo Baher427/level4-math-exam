@@ -75,7 +75,6 @@ const additionalColumns = [
   { id: 10, numbers: [54, 11, -13] },
 ];
 
-// حساب الإجابة الصحيحة
 const calculateCorrectAnswer = (numbers: number[]): number => {
   return numbers.reduce((sum, num) => sum + num, 0);
 };
@@ -83,12 +82,16 @@ const calculateCorrectAnswer = (numbers: number[]): number => {
 // مكون حقل الإدخال الرقمي
 function NumberInput({ 
   value, 
-  onChange, 
-  size = "normal"
+  onChange,
+  onKeyDown,
+  size = "normal",
+  autoFocus = true
 }: { 
   value: string; 
   onChange: (value: string) => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
   size?: "small" | "normal" | "large";
+  autoFocus?: boolean;
 }) {
   const sizeClasses = {
     small: "w-16 h-10 text-base",
@@ -108,9 +111,11 @@ function NumberInput({
           onChange(val);
         }
       }}
+      onKeyDown={onKeyDown}
       className={`${sizeClasses[size]} text-center font-bold border-2 border-emerald-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200`}
       placeholder="؟"
       autoComplete="off"
+      autoFocus={autoFocus}
     />
   );
 }
@@ -137,6 +142,44 @@ export default function ExamPage() {
     mental: boolean[];
     additional: boolean[];
   } | null>(null);
+
+  const sections = [
+    { name: "الضرب", icon: "✖️", questions: 10 },
+    { name: "Abacus 1", icon: "🧮", questions: 5 },
+    { name: "Abacus 2", icon: "🧮", questions: 5 },
+    { name: "Mental", icon: "🧠", questions: 10 },
+    { name: "إضافي", icon: "📝", questions: 10 },
+  ];
+
+  const getTotalQuestions = () => sections.reduce((sum, s) => sum + s.questions, 0);
+  
+  const getCurrentQuestionNumber = () => {
+    let total = 0;
+    for (let i = 0; i < activeSection; i++) {
+      total += sections[i].questions;
+    }
+    return total + activeQuestion + 1;
+  };
+
+  const isLastQuestion = () => getCurrentQuestionNumber() === getTotalQuestions();
+
+  const navigateNext = () => {
+    if (activeQuestion < sections[activeSection].questions - 1) {
+      setActiveQuestion(activeQuestion + 1);
+    } else if (activeSection < sections.length - 1) {
+      setActiveSection(activeSection + 1);
+      setActiveQuestion(0);
+    }
+  };
+
+  const navigatePrev = () => {
+    if (activeQuestion > 0) {
+      setActiveQuestion(activeQuestion - 1);
+    } else if (activeSection > 0) {
+      setActiveSection(activeSection - 1);
+      setActiveQuestion(sections[activeSection - 1].questions - 1);
+    }
+  };
 
   // المؤقت التصاعدي
   useEffect(() => {
@@ -190,6 +233,18 @@ export default function ExamPage() {
     setExamFinished(true);
   }, [multiplicationAnswers, abacusAnswers1, abacusAnswers2, mentalAnswers, additionalAnswers]);
 
+  // معالجة ضغط Enter
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (isLastQuestion()) {
+        handleFinishExam();
+      } else {
+        navigateNext();
+      }
+    }
+  };
+
   const calculateScore = () => {
     if (!results) return { correct: 0, total: 0, percentage: 0 };
     const allResults = [
@@ -219,75 +274,39 @@ export default function ExamPage() {
     setActiveQuestion(0);
   };
 
-  const sections = [
-    { name: "الضرب", icon: "✖️", questions: 10 },
-    { name: "Abacus 1", icon: "🧮", questions: 5 },
-    { name: "Abacus 2", icon: "🧮", questions: 5 },
-    { name: "Mental", icon: "🧠", questions: 10 },
-    { name: "إضافي", icon: "📝", questions: 10 },
-  ];
-
-  const getTotalQuestions = () => sections.reduce((sum, s) => sum + s.questions, 0);
-  
-  const getCurrentQuestionNumber = () => {
-    let total = 0;
-    for (let i = 0; i < activeSection; i++) {
-      total += sections[i].questions;
-    }
-    return total + activeQuestion + 1;
-  };
-
-  const navigateNext = () => {
-    if (activeQuestion < sections[activeSection].questions - 1) {
-      setActiveQuestion(activeQuestion + 1);
-    } else if (activeSection < sections.length - 1) {
-      setActiveSection(activeSection + 1);
-      setActiveQuestion(0);
-    }
-  };
-
-  const navigatePrev = () => {
-    if (activeQuestion > 0) {
-      setActiveQuestion(activeQuestion - 1);
-    } else if (activeSection > 0) {
-      setActiveSection(activeSection - 1);
-      setActiveQuestion(sections[activeSection - 1].questions - 1);
-    }
-  };
-
   // صفحة البداية
   if (!examStarted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center p-4">
+      <div className="h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center p-4 overflow-hidden">
         <Card className="w-full max-w-md shadow-2xl border-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-6 sm:p-8 text-center text-white">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Calculator className="w-8 h-8 sm:w-10 sm:h-10" />
+          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-6 text-center text-white">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Calculator className="w-8 h-8" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2">امتحان المستوى الرابع</h1>
-            <p className="text-emerald-100 text-sm sm:text-base">Final Exam - Level 4</p>
+            <h1 className="text-2xl font-bold mb-2">امتحان المستوى الرابع</h1>
+            <p className="text-emerald-100 text-sm">Final Exam - Level 4</p>
           </div>
-          <CardContent className="p-6 sm:p-8">
+          <CardContent className="p-6">
             <div className="space-y-3 mb-6">
               <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-lg">
                 <Clock className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span className="text-gray-700 text-sm sm:text-base">الوقت: <strong>مفتوح</strong></span>
+                <span className="text-gray-700 text-sm">الوقت: <strong>مفتوح</strong></span>
               </div>
               <div className="flex items-center gap-3 p-3 bg-teal-50 rounded-lg">
                 <Sparkles className="w-5 h-5 text-teal-600 shrink-0" />
-                <span className="text-gray-700 text-sm sm:text-base">عدد الأسئلة: <strong>40 سؤال</strong></span>
+                <span className="text-gray-700 text-sm">عدد الأسئلة: <strong>40 سؤال</strong></span>
               </div>
               <div className="flex items-center gap-3 p-3 bg-cyan-50 rounded-lg">
                 <Trophy className="w-5 h-5 text-cyan-600 shrink-0" />
-                <span className="text-gray-700 text-sm sm:text-base">الأقسام: <strong>5 أقسام</strong></span>
+                <span className="text-gray-700 text-sm">الأقسام: <strong>5 أقسام</strong></span>
               </div>
             </div>
 
             <div className="space-y-2 mb-6">
-              <h3 className="font-semibold text-gray-700 mb-3 text-sm sm:text-base">أقسام الامتحان:</h3>
+              <h3 className="font-semibold text-gray-700 mb-2 text-sm">أقسام الامتحان:</h3>
               {sections.map((section, i) => (
-                <div key={i} className="flex items-center gap-2 text-gray-600 text-sm sm:text-base">
-                  <span className="text-lg">{section.icon}</span>
+                <div key={i} className="flex items-center gap-2 text-gray-600 text-sm">
+                  <span>{section.icon}</span>
                   <span>{section.name}</span>
                   <Badge variant="outline" className="text-xs">{section.questions} أسئلة</Badge>
                 </div>
@@ -296,7 +315,7 @@ export default function ExamPage() {
 
             <Button
               onClick={() => setExamStarted(true)}
-              className="w-full h-12 sm:h-14 text-base sm:text-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-lg"
+              className="w-full h-12 text-base bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-lg"
             >
               <Play className="w-5 h-5 mr-2" />
               ابدأ الامتحان
@@ -312,42 +331,42 @@ export default function ExamPage() {
     const score = calculateScore();
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 p-3 sm:p-4">
+      <div className="h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 p-4 overflow-auto">
         <div className="max-w-4xl mx-auto">
-          <Card className="shadow-2xl border-0 overflow-hidden mb-4 sm:mb-6">
-            <div className={`p-6 sm:p-8 text-center text-white ${
+          <Card className="shadow-2xl border-0 overflow-hidden">
+            <div className={`p-6 text-center text-white ${
               score.percentage >= 80 
                 ? "bg-gradient-to-r from-emerald-600 to-teal-600" 
                 : score.percentage >= 60 
                   ? "bg-gradient-to-r from-amber-500 to-orange-500"
                   : "bg-gradient-to-r from-rose-500 to-red-500"
             }`}>
-              <div className="w-16 h-16 sm:w-24 sm:h-24 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 {score.percentage >= 80 ? (
-                  <Trophy className="w-8 h-8 sm:w-12 sm:h-12" />
+                  <Trophy className="w-8 h-8" />
                 ) : score.percentage >= 60 ? (
-                  <Sparkles className="w-8 h-8 sm:w-12 sm:h-12" />
+                  <Sparkles className="w-8 h-8" />
                 ) : (
-                  <XCircle className="w-8 h-8 sm:w-12 sm:h-12" />
+                  <XCircle className="w-8 h-8" />
                 )}
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold mb-2">انتهى الامتحان!</h1>
-              <p className="text-white/80 text-sm sm:text-base">نتيجتك النهائية</p>
-              <div className="mt-4 flex items-center justify-center gap-2 text-white/90">
-                <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="text-sm sm:text-base">الوقت المستغرق: {formatTime(timeElapsed)}</span>
+              <h1 className="text-2xl font-bold mb-2">انتهى الامتحان!</h1>
+              <p className="text-white/80 text-sm">نتيجتك النهائية</p>
+              <div className="mt-3 flex items-center justify-center gap-2 text-white/90">
+                <Clock className="w-4 h-4" />
+                <span className="text-sm">الوقت المستغرق: {formatTime(timeElapsed)}</span>
               </div>
             </div>
-            <CardContent className="p-4 sm:p-8">
-              <div className="text-center mb-6 sm:mb-8">
-                <div className="text-5xl sm:text-6xl font-bold text-emerald-600 mb-2">{score.percentage}%</div>
-                <div className="text-lg sm:text-xl text-gray-600">
+            <CardContent className="p-6">
+              <div className="text-center mb-6">
+                <div className="text-5xl font-bold text-emerald-600 mb-2">{score.percentage}%</div>
+                <div className="text-lg text-gray-600">
                   {score.correct} من {score.total} إجابة صحيحة
                 </div>
-                <Progress value={score.percentage} className="h-2 sm:h-3 mt-4" />
+                <Progress value={score.percentage} className="h-2 mt-4" />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
                 <ResultSection 
                   title="قسم الضرب" 
                   results={results.multiplication} 
@@ -383,7 +402,7 @@ export default function ExamPage() {
 
               <Button
                 onClick={resetExam}
-                className="w-full h-12 sm:h-14 text-base sm:text-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
+                className="w-full h-12 text-base bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
               >
                 <RefreshCcw className="w-5 h-5 mr-2" />
                 إعادة الامتحان
@@ -397,61 +416,59 @@ export default function ExamPage() {
 
   // صفحة الامتحان - سؤال واحد في كل مرة
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex flex-col">
+    <div className="h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex flex-col overflow-hidden">
       {/* الهيدر */}
-      <header className="bg-white/90 backdrop-blur-sm shadow-sm sticky top-0 z-50 shrink-0">
-        <div className="max-w-4xl mx-auto px-4 py-3">
+      <header className="bg-white/90 backdrop-blur-sm shadow-sm shrink-0 px-4 py-2">
+        <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-3">
-              <Calculator className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-600" />
+            <div className="flex items-center gap-2">
+              <Calculator className="w-5 h-5 text-emerald-600" />
               <div>
-                <h1 className="font-bold text-gray-800 text-sm sm:text-base">{sections[activeSection].icon} {sections[activeSection].name}</h1>
-                <p className="text-xs text-gray-500">السؤال {activeQuestion + 1} من {sections[activeSection].questions}</p>
+                <h1 className="font-bold text-gray-800 text-sm">{sections[activeSection].icon} {sections[activeSection].name}</h1>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-600">
-                <Clock className="w-4 h-4" />
-                <span className="font-mono font-bold text-sm">{formatTime(timeElapsed)}</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 text-emerald-600">
+                <Clock className="w-3 h-3" />
+                <span className="font-mono font-bold text-xs">{formatTime(timeElapsed)}</span>
               </div>
               <Button 
                 onClick={handleFinishExam}
-                className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-sm"
+                variant="ghost"
+                className="text-gray-500 hover:text-gray-700 h-7 px-2 text-xs"
               >
-                <CheckCircle2 className="w-4 h-4 mr-2" />
                 إنهاء
               </Button>
             </div>
           </div>
           
           {/* شريط التقدم */}
-          <div className="mt-3">
+          <div className="mt-2">
             <Progress 
               value={(getCurrentQuestionNumber() / getTotalQuestions()) * 100} 
-              className="h-2"
+              className="h-1.5"
             />
-            <p className="text-xs text-gray-500 mt-1 text-center">
-              السؤال {getCurrentQuestionNumber()} من {getTotalQuestions()}
+            <p className="text-xs text-gray-400 mt-1 text-center">
+              {getCurrentQuestionNumber()} / {getTotalQuestions()}
             </p>
           </div>
         </div>
       </header>
 
-      {/* محتوى السؤال */}
-      <main className="flex-1 flex items-center justify-center p-4">
-        <Card className="w-full max-w-lg shadow-xl border-0">
-          <CardHeader className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-t-lg py-4">
-            <CardTitle className="flex items-center justify-center gap-2 text-lg">
-              <Badge className="bg-white/20 text-white text-base px-3 py-1">
+      {/* محتوى السؤال - يملأ الشاشة */}
+      <main className="flex-1 flex items-center justify-center p-4 overflow-hidden">
+        <Card className="w-full max-w-md shadow-xl border-0">
+          <CardHeader className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-t-lg py-3">
+            <CardTitle className="flex items-center justify-center gap-2 text-base">
+              <Badge className="bg-white/20 text-white text-sm px-3 py-0.5">
                 سؤال {activeQuestion + 1}
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-6">
+          <CardContent className="p-4">
             {/* قسم الضرب */}
             {activeSection === 0 && (
               <MultiplicationQuestion
-                index={activeQuestion}
                 problem={multiplicationProblems[activeQuestion]}
                 answer={multiplicationAnswers[activeQuestion]}
                 onAnswer={(val) => {
@@ -459,6 +476,7 @@ export default function ExamPage() {
                   newAnswers[activeQuestion] = val;
                   setMultiplicationAnswers(newAnswers);
                 }}
+                onKeyDown={handleKeyDown}
               />
             )}
 
@@ -472,6 +490,7 @@ export default function ExamPage() {
                   newAnswers[activeQuestion] = val;
                   setAbacusAnswers1(newAnswers);
                 }}
+                onKeyDown={handleKeyDown}
               />
             )}
 
@@ -485,6 +504,7 @@ export default function ExamPage() {
                   newAnswers[activeQuestion] = val;
                   setAbacusAnswers2(newAnswers);
                 }}
+                onKeyDown={handleKeyDown}
               />
             )}
 
@@ -498,6 +518,7 @@ export default function ExamPage() {
                   newAnswers[activeQuestion] = val;
                   setMentalAnswers(newAnswers);
                 }}
+                onKeyDown={handleKeyDown}
               />
             )}
 
@@ -511,6 +532,7 @@ export default function ExamPage() {
                   newAnswers[activeQuestion] = val;
                   setAdditionalAnswers(newAnswers);
                 }}
+                onKeyDown={handleKeyDown}
               />
             )}
           </CardContent>
@@ -518,64 +540,68 @@ export default function ExamPage() {
       </main>
 
       {/* شريط التنقل السفلي */}
-      <footer className="bg-white/90 backdrop-blur-sm border-t shrink-0 sticky bottom-0">
-        <div className="max-w-lg mx-auto px-4 py-3">
-          <div className="flex justify-between items-center gap-4">
+      <footer className="bg-white/90 backdrop-blur-sm border-t shrink-0 px-4 py-2">
+        <div className="max-w-md mx-auto">
+          <div className="flex justify-between items-center gap-3">
             <Button
               variant="outline"
               onClick={navigatePrev}
               disabled={activeSection === 0 && activeQuestion === 0}
-              className="h-12 px-6 text-base flex-1"
+              className="h-11 px-4 text-sm flex-1"
             >
-              <ChevronRight className="w-5 h-5 ml-1" />
+              <ChevronRight className="w-4 h-4 ml-1" />
               السابق
             </Button>
             
-            {getCurrentQuestionNumber() === getTotalQuestions() ? (
+            {isLastQuestion() ? (
               <Button
                 onClick={handleFinishExam}
-                className="bg-emerald-600 hover:bg-emerald-700 h-12 px-6 text-base flex-1"
+                className="bg-emerald-600 hover:bg-emerald-700 h-11 px-4 text-sm flex-1"
               >
-                <CheckCircle2 className="w-5 h-5 mr-2" />
+                <CheckCircle2 className="w-4 h-4 mr-1" />
                 إنهاء الامتحان
               </Button>
             ) : (
               <Button
                 onClick={navigateNext}
-                className="bg-emerald-600 hover:bg-emerald-700 h-12 px-6 text-base flex-1"
+                className="bg-emerald-600 hover:bg-emerald-700 h-11 px-4 text-sm flex-1"
               >
                 التالي
-                <ChevronLeft className="w-5 h-5 mr-1" />
+                <ChevronLeft className="w-4 h-4 mr-1" />
               </Button>
             )}
           </div>
           
           {/* نقاط التنقل */}
-          <div className="flex justify-center gap-2 mt-3 flex-wrap">
-            {sections.map((section, sIndex) => (
-              <div key={sIndex} className="flex gap-1">
-                {Array.from({ length: section.questions }).map((_, qIndex) => {
-                  const globalIndex = sections.slice(0, sIndex).reduce((sum, s) => sum + s.questions, 0) + qIndex;
-                  const currentGlobal = getCurrentQuestionNumber() - 1;
-                  return (
-                    <button
-                      key={qIndex}
-                      onClick={() => {
-                        setActiveSection(sIndex);
-                        setActiveQuestion(qIndex);
-                      }}
-                      className={`w-2 h-2 rounded-full transition-all ${
-                        globalIndex === currentGlobal
-                          ? "bg-emerald-600 w-4"
-                          : globalIndex < currentGlobal
-                            ? "bg-emerald-300"
-                            : "bg-gray-300"
-                      }`}
-                    />
-                  );
-                })}
-              </div>
-            ))}
+          <div className="flex justify-center gap-1 mt-2 flex-wrap">
+            {Array.from({ length: getTotalQuestions() }).map((_, i) => {
+              const currentGlobal = getCurrentQuestionNumber() - 1;
+              return (
+                <button
+                  key={i}
+                  onClick={() => {
+                    let section = 0;
+                    let question = i;
+                    for (let s = 0; s < sections.length; s++) {
+                      if (question < sections[s].questions) {
+                        section = s;
+                        break;
+                      }
+                      question -= sections[s].questions;
+                    }
+                    setActiveSection(section);
+                    setActiveQuestion(question);
+                  }}
+                  className={`w-1.5 h-1.5 rounded-full transition-all ${
+                    i === currentGlobal
+                      ? "bg-emerald-600 w-3"
+                      : i < currentGlobal
+                        ? "bg-emerald-300"
+                        : "bg-gray-300"
+                  }`}
+                />
+              );
+            })}
           </div>
         </div>
       </footer>
@@ -585,30 +611,31 @@ export default function ExamPage() {
 
 // مكون سؤال الضرب
 function MultiplicationQuestion({ 
-  index, 
   problem, 
   answer, 
-  onAnswer 
+  onAnswer,
+  onKeyDown
 }: { 
-  index: number;
   problem: { num1: number; num2: number };
   answer: string;
   onAnswer: (val: string) => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
 }) {
   return (
     <div className="text-center">
-      <div className="flex items-center justify-center gap-4 text-3xl sm:text-4xl font-bold mb-8">
+      <div className="flex items-center justify-center gap-3 text-2xl font-bold mb-4">
         <span className="text-gray-700">{problem.num1}</span>
-        <span className="text-emerald-600 text-2xl">✕</span>
+        <span className="text-emerald-600 text-xl">✕</span>
         <span className="text-gray-700">{problem.num2}</span>
       </div>
       
-      <div className="border-t-4 border-emerald-200 pt-6">
-        <div className="flex items-center justify-center gap-3 text-3xl font-bold">
-          <span className="text-emerald-600 text-2xl">=</span>
+      <div className="border-t-2 border-emerald-200 pt-4">
+        <div className="flex items-center justify-center gap-2 text-xl font-bold">
+          <span className="text-emerald-600">=</span>
           <NumberInput
             value={answer}
             onChange={onAnswer}
+            onKeyDown={onKeyDown}
             size="large"
           />
         </div>
@@ -621,19 +648,21 @@ function MultiplicationQuestion({
 function AbacusQuestion({ 
   column, 
   answer, 
-  onAnswer 
+  onAnswer,
+  onKeyDown
 }: { 
   column: { id: number; numbers: number[] };
   answer: string;
   onAnswer: (val: string) => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
 }) {
   return (
     <div className="text-center">
-      <div className="bg-gray-50 rounded-lg p-4 mb-6">
-        <div className="space-y-2">
+      <div className="bg-gray-50 rounded-lg p-3 mb-4">
+        <div className="space-y-1.5">
           {column.numbers.map((num, i) => (
-            <div key={i} className="flex items-center justify-center border-b-2 border-gray-200 pb-2 last:border-0 last:pb-0">
-              <span className={`inline-block w-20 py-2 rounded-lg text-xl font-bold ${
+            <div key={i} className="flex items-center justify-center border-b border-gray-200 pb-1.5 last:border-0 last:pb-0">
+              <span className={`inline-block w-16 py-1 rounded text-base font-bold ${
                 num < 0 
                   ? "bg-red-100 text-red-600" 
                   : "bg-emerald-100 text-emerald-600"
@@ -645,12 +674,13 @@ function AbacusQuestion({
         </div>
       </div>
       
-      <div className="border-t-4 border-emerald-200 pt-6">
-        <p className="text-gray-600 mb-3">الناتج:</p>
+      <div className="border-t-2 border-emerald-200 pt-4">
+        <p className="text-gray-500 text-sm mb-2">الناتج:</p>
         <div className="flex items-center justify-center">
           <NumberInput
             value={answer}
             onChange={onAnswer}
+            onKeyDown={onKeyDown}
             size="large"
           />
         </div>
@@ -663,19 +693,21 @@ function AbacusQuestion({
 function MentalQuestion({ 
   column, 
   answer, 
-  onAnswer 
+  onAnswer,
+  onKeyDown
 }: { 
   column: { id: number; numbers: number[] };
   answer: string;
   onAnswer: (val: string) => void;
+  onKeyDown: (e: React.KeyboardEvent) => void;
 }) {
   return (
     <div className="text-center">
-      <div className="bg-gray-50 rounded-lg p-4 mb-6">
-        <div className="space-y-2">
+      <div className="bg-gray-50 rounded-lg p-3 mb-4">
+        <div className="space-y-1.5">
           {column.numbers.map((num, i) => (
-            <div key={i} className="flex items-center justify-center border-b-2 border-gray-200 pb-2 last:border-0 last:pb-0">
-              <span className={`inline-block w-16 py-1.5 rounded-lg text-lg font-bold ${
+            <div key={i} className="flex items-center justify-center border-b border-gray-200 pb-1.5 last:border-0 last:pb-0">
+              <span className={`inline-block w-14 py-1 rounded text-sm font-bold ${
                 num < 0 
                   ? "bg-red-100 text-red-600" 
                   : "bg-violet-100 text-violet-600"
@@ -687,12 +719,13 @@ function MentalQuestion({
         </div>
       </div>
       
-      <div className="border-t-4 border-violet-200 pt-6">
-        <p className="text-gray-600 mb-3">الناتج:</p>
+      <div className="border-t-2 border-violet-200 pt-4">
+        <p className="text-gray-500 text-sm mb-2">الناتج:</p>
         <div className="flex items-center justify-center">
           <NumberInput
             value={answer}
             onChange={onAnswer}
+            onKeyDown={onKeyDown}
             size="large"
           />
         </div>
@@ -720,24 +753,24 @@ function ResultSection({
 
   return (
     <Card className={`shadow ${className}`}>
-      <CardHeader className="py-2 sm:py-3 px-3 sm:px-4 bg-gray-50">
+      <CardHeader className="py-2 px-3 bg-gray-50">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-xs sm:text-sm">{title}</CardTitle>
+          <CardTitle className="text-xs">{title}</CardTitle>
           <Badge variant={correct === total ? "default" : "secondary"} className={`text-xs ${correct === total ? "bg-emerald-600" : ""}`}>
             {correct}/{total}
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="p-2 sm:p-3">
-        <div className="grid grid-cols-5 gap-1 sm:gap-2">
+      <CardContent className="p-2">
+        <div className="grid grid-cols-5 gap-1">
           {results.map((isCorrect, i) => (
             <div key={i} className="text-center">
-              <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center mx-auto mb-0.5 sm:mb-1 ${
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center mx-auto ${
                 isCorrect 
                   ? "bg-emerald-100 text-emerald-600" 
                   : "bg-red-100 text-red-600"
               }`}>
-                {isCorrect ? <CheckCircle2 className="w-3 h-3 sm:w-4 sm:h-4" /> : <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />}
+                {isCorrect ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
               </div>
               <div className="text-xs text-gray-500 truncate">
                 {userAnswers[i] || "-"}
