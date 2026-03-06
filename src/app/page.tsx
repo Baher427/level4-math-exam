@@ -84,14 +84,12 @@ function NumberInput({
   value, 
   onChange,
   onKeyDown,
-  size = "normal",
-  autoFocus = true
+  size = "normal"
 }: { 
   value: string; 
   onChange: (value: string) => void;
   onKeyDown?: (e: React.KeyboardEvent) => void;
   size?: "small" | "normal" | "large";
-  autoFocus?: boolean;
 }) {
   const sizeClasses = {
     small: "w-16 h-10 text-base",
@@ -115,7 +113,6 @@ function NumberInput({
       className={`${sizeClasses[size]} text-center font-bold border-2 border-emerald-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200`}
       placeholder="؟"
       autoComplete="off"
-      autoFocus={autoFocus}
     />
   );
 }
