@@ -19,7 +19,11 @@ import {
   ChevronLeft,
   Flag,
   X,
-  List
+  List,
+  Trash2,
+  Eye,
+  History,
+  Home
 } from "lucide-react";
 
 // بيانات الامتحان
@@ -78,53 +82,84 @@ const additionalColumns = [
   { id: 10, numbers: [54, 11, -13] },
 ];
 
+const sections = [
+  { name: "الضرب", icon: "✖️", questions: 10 },
+  { name: "Abacus 1", icon: "🧮", questions: 5 },
+  { name: "Abacus 2", icon: "🧮", questions: 5 },
+  { name: "Mental", icon: "🧠", questions: 10 },
+  { name: "إضافي", icon: "📝", questions: 10 },
+];
+
 const calculateCorrectAnswer = (numbers: number[]): number => {
   return numbers.reduce((sum, num) => sum + num, 0);
 };
 
-// مكون حقل الإدخال الرقمي
-const NumberInput = ({ 
-  value, 
-  onChange,
-  onKeyDown,
-  inputRef
-}: { 
+// أنواع البيانات
+interface ExamSession {
+  id: string;
+  studentName: string | null;
+  totalQuestions: number;
+  correctAnswers: number;
+  percentage: number;
+  totalTimeSeconds: number;
+  status: string;
+  createdAt: string;
+  answers: ExamAnswer[];
+}
+
+interface ExamAnswer {
+  id: string;
+  section: string;
+  questionIndex: number;
+  globalIndex: number;
+  questionData: string;
+  userAnswer: string | null;
+  correctAnswer: number;
+  isCorrect: boolean;
+  timeSeconds: number;
+  isMarked: boolean;
+}
+
+// مكون حقل الإدخال
+const NumberInput = ({ value, onChange, onKeyDown, inputRef }: { 
   value: string; 
   onChange: (value: string) => void;
   onKeyDown?: (e: React.KeyboardEvent) => void;
   inputRef?: React.RefObject<HTMLInputElement | null>;
-}) => {
-  return (
-    <Input
-      ref={inputRef}
-      type="text"
-      inputMode="numeric"
-      pattern="[0-9\-]*"
-      value={value}
-      onChange={(e) => {
-        const val = e.target.value;
-        if (/^-?\d*$/.test(val)) {
-          onChange(val);
-        }
-      }}
-      onKeyDown={onKeyDown}
-      className="w-16 h-9 text-base text-center font-bold border-2 border-emerald-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200"
-      placeholder="؟"
-      autoComplete="off"
-    />
-  );
-};
+}) => (
+  <Input
+    ref={inputRef}
+    type="text"
+    inputMode="numeric"
+    pattern="[0-9\-]*"
+    value={value}
+    onChange={(e) => {
+      const val = e.target.value;
+      if (/^-?\d*$/.test(val)) onChange(val);
+    }}
+    onKeyDown={onKeyDown}
+    className="w-16 h-9 text-base text-center font-bold border-2 border-emerald-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200"
+    placeholder="؟"
+    autoComplete="off"
+  />
+);
 
 export default function ExamPage() {
-  const [examStarted, setExamStarted] = useState(false);
-  const [examFinished, setExamFinished] = useState(false);
+  // حالة الصفحة
+  const [view, setView] = useState<'home' | 'exam' | 'result'>('home');
+  const [examSessions, setExamSessions] = useState<ExamSession[]>([]);
+  const [selectedSession, setSelectedSession] = useState<ExamSession | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // حالة الامتحان
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [activeSection, setActiveSection] = useState(0);
   const [activeQuestion, setActiveQuestion] = useState(0);
   const [markedQuestions, setMarkedQuestions] = useState<Set<number>>(new Set());
   const [showMarkedList, setShowMarkedList] = useState(false);
+  const [questionTimes, setQuestionTimes] = useState<number[]>(Array(40).fill(0));
+  const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now());
 
-  // مرجع لحقل الإدخال
   const inputRef = useRef<HTMLInputElement>(null);
 
   // الإجابات
@@ -134,24 +169,40 @@ export default function ExamPage() {
   const [mentalAnswers, setMentalAnswers] = useState<string[]>(Array(10).fill(""));
   const [additionalAnswers, setAdditionalAnswers] = useState<string[]>(Array(10).fill(""));
 
-  // النتائج
-  const [results, setResults] = useState<{
-    multiplication: boolean[];
-    abacus1: boolean[];
-    abacus2: boolean[];
-    mental: boolean[];
-    additional: boolean[];
-  } | null>(null);
+  // جلب جلسات الامتحان
+  const fetchSessions = async () => {
+    try {
+      const res = await fetch('/api/exam');
+      const data = await res.json();
+      setExamSessions(data.sessions || []);
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+    }
+  };
 
-  const sections = [
-    { name: "الضرب", icon: "✖️", questions: 10 },
-    { name: "Abacus 1", icon: "🧮", questions: 5 },
-    { name: "Abacus 2", icon: "🧮", questions: 5 },
-    { name: "Mental", icon: "🧠", questions: 10 },
-    { name: "إضافي", icon: "📝", questions: 10 },
-  ];
+  useEffect(() => {
+    if (view === 'home') {
+      fetchSessions();
+    }
+  }, [view]);
 
-  const getTotalQuestions = () => sections.reduce((sum, s) => sum + s.questions, 0);
+  // المؤقت
+  useEffect(() => {
+    if (view !== 'exam') return;
+    const timer = setInterval(() => {
+      setTimeElapsed((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [view]);
+
+  // تحديث وقت السؤال عند الانتقال
+  useEffect(() => {
+    if (view === 'exam') {
+      setQuestionStartTime(Date.now());
+    }
+  }, [activeSection, activeQuestion, view]);
+
+  const getTotalQuestions = () => 40;
   
   const getCurrentQuestionNumber = () => {
     let total = 0;
@@ -161,13 +212,7 @@ export default function ExamPage() {
     return total + activeQuestion + 1;
   };
 
-  const getCurrentGlobalIndex = () => {
-    let total = 0;
-    for (let i = 0; i < activeSection; i++) {
-      total += sections[i].questions;
-    }
-    return total + activeQuestion;
-  };
+  const getCurrentGlobalIndex = () => getCurrentQuestionNumber() - 1;
 
   const isLastQuestion = () => getCurrentQuestionNumber() === getTotalQuestions();
 
@@ -185,12 +230,22 @@ export default function ExamPage() {
   };
 
   const hideKeyboard = () => {
-    if (inputRef.current) {
-      inputRef.current.blur();
-    }
+    if (inputRef.current) inputRef.current.blur();
+  };
+
+  // حفظ وقت السؤال الحالي قبل الانتقال
+  const saveCurrentQuestionTime = () => {
+    const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
+    const globalIndex = getCurrentGlobalIndex();
+    setQuestionTimes(prev => {
+      const newTimes = [...prev];
+      newTimes[globalIndex] = (newTimes[globalIndex] || 0) + timeSpent;
+      return newTimes;
+    });
   };
 
   const navigateNext = () => {
+    saveCurrentQuestionTime();
     hideKeyboard();
     if (activeQuestion < sections[activeSection].questions - 1) {
       setActiveQuestion(activeQuestion + 1);
@@ -201,6 +256,7 @@ export default function ExamPage() {
   };
 
   const navigatePrev = () => {
+    saveCurrentQuestionTime();
     hideKeyboard();
     if (activeQuestion > 0) {
       setActiveQuestion(activeQuestion - 1);
@@ -214,27 +270,22 @@ export default function ExamPage() {
     const currentGlobal = getCurrentGlobalIndex();
     const markedArray = Array.from(markedQuestions).sort((a, b) => a - b);
     const nextMarked = markedArray.find(i => i > currentGlobal);
-    if (nextMarked !== undefined) {
-      goToQuestion(nextMarked);
-    } else if (markedArray.length > 0) {
-      goToQuestion(markedArray[0]);
-    }
+    if (nextMarked !== undefined) goToQuestion(nextMarked);
+    else if (markedArray.length > 0) goToQuestion(markedArray[0]);
   };
 
   const toggleMark = () => {
     const globalIndex = getCurrentGlobalIndex();
     setMarkedQuestions(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(globalIndex)) {
-        newSet.delete(globalIndex);
-      } else {
-        newSet.add(globalIndex);
-      }
+      if (newSet.has(globalIndex)) newSet.delete(globalIndex);
+      else newSet.add(globalIndex);
       return newSet;
     });
   };
 
   const goToQuestion = (globalIndex: number) => {
+    saveCurrentQuestionTime();
     hideKeyboard();
     const { section, question } = getQuestionInfo(globalIndex);
     setActiveSection(section);
@@ -242,195 +293,241 @@ export default function ExamPage() {
     setShowMarkedList(false);
   };
 
-  useEffect(() => {
-    if (!examStarted || examFinished) return;
-    const timer = setInterval(() => {
-      setTimeElapsed((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [examStarted, examFinished]);
-
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const handleFinishExam = useCallback(() => {
-    const multiplicationResults = multiplicationProblems.map((p, i) => {
-      const correct = p.num1 * p.num2;
-      return parseInt(multiplicationAnswers[i]) === correct;
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('ar-EG', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // حساب النتائج
+  const calculateResults = () => {
+    const multiplicationResults = multiplicationProblems.map((p, i) => ({
+      correct: p.num1 * p.num2,
+      userAnswer: parseInt(multiplicationAnswers[i]) || 0,
+      isCorrect: parseInt(multiplicationAnswers[i]) === p.num1 * p.num2
+    }));
+
+    const abacusResults1 = abacusColumns1.map((col, i) => ({
+      correct: calculateCorrectAnswer(col.numbers),
+      userAnswer: parseInt(abacusAnswers1[i]) || 0,
+      isCorrect: parseInt(abacusAnswers1[i]) === calculateCorrectAnswer(col.numbers)
+    }));
+
+    const abacusResults2 = abacusColumns2.map((col, i) => ({
+      correct: calculateCorrectAnswer(col.numbers),
+      userAnswer: parseInt(abacusAnswers2[i]) || 0,
+      isCorrect: parseInt(abacusAnswers2[i]) === calculateCorrectAnswer(col.numbers)
+    }));
+
+    const mentalResults = mentalColumns.map((col, i) => ({
+      correct: calculateCorrectAnswer(col.numbers),
+      userAnswer: parseInt(mentalAnswers[i]) || 0,
+      isCorrect: parseInt(mentalAnswers[i]) === calculateCorrectAnswer(col.numbers)
+    }));
+
+    const additionalResults = additionalColumns.map((col, i) => ({
+      correct: calculateCorrectAnswer(col.numbers),
+      userAnswer: parseInt(additionalAnswers[i]) || 0,
+      isCorrect: parseInt(additionalAnswers[i]) === calculateCorrectAnswer(col.numbers)
+    }));
+
+    const allResults = [
+      ...multiplicationResults,
+      ...abacusResults1,
+      ...abacusResults2,
+      ...mentalResults,
+      ...additionalResults
+    ];
+
+    const correctCount = allResults.filter(r => r.isCorrect).length;
+    const percentage = Math.round((correctCount / 40) * 100);
+
+    return { allResults, correctCount, percentage };
+  };
+
+  // إنهاء وحفظ الامتحان
+  const handleFinishExam = async () => {
+    saveCurrentQuestionTime();
+    setIsLoading(true);
+    
+    const { allResults, correctCount, percentage } = calculateResults();
+
+    // بناء بيانات الأسئلة
+    const answers = allResults.map((result, i) => {
+      const { section, question } = getQuestionInfo(i);
+      let questionData = '';
+      
+      if (section === 0) {
+        const p = multiplicationProblems[question];
+        questionData = JSON.stringify({ type: 'multiplication', num1: p.num1, num2: p.num2 });
+      } else {
+        const columns = section === 1 ? abacusColumns1 : section === 2 ? abacusColumns2 : section === 3 ? mentalColumns : additionalColumns;
+        questionData = JSON.stringify({ type: 'abacus', numbers: columns[question].numbers });
+      }
+
+      return {
+        section: sections[section].name,
+        questionIndex: question,
+        globalIndex: i,
+        questionData,
+        userAnswer: result.userAnswer ? result.userAnswer.toString() : null,
+        correctAnswer: result.correct,
+        isCorrect: result.isCorrect,
+        timeSeconds: questionTimes[i] || 0,
+        isMarked: markedQuestions.has(i)
+      };
     });
 
-    const abacusResults1 = abacusColumns1.map((col, i) => {
-      const correct = calculateCorrectAnswer(col.numbers);
-      return parseInt(abacusAnswers1[i]) === correct;
-    });
-
-    const abacusResults2 = abacusColumns2.map((col, i) => {
-      const correct = calculateCorrectAnswer(col.numbers);
-      return parseInt(abacusAnswers2[i]) === correct;
-    });
-
-    const mentalResults = mentalColumns.map((col, i) => {
-      const correct = calculateCorrectAnswer(col.numbers);
-      return parseInt(mentalAnswers[i]) === correct;
-    });
-
-    const additionalResults = additionalColumns.map((col, i) => {
-      const correct = calculateCorrectAnswer(col.numbers);
-      return parseInt(additionalAnswers[i]) === correct;
-    });
-
-    setResults({
-      multiplication: multiplicationResults,
-      abacus1: abacusResults1,
-      abacus2: abacusResults2,
-      mental: mentalResults,
-      additional: additionalResults,
-    });
-
-    setExamFinished(true);
-  }, [multiplicationAnswers, abacusAnswers1, abacusAnswers2, mentalAnswers, additionalAnswers]);
+    try {
+      const res = await fetch('/api/exam', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          totalQuestions: 40,
+          correctAnswers: correctCount,
+          percentage,
+          totalTimeSeconds: timeElapsed,
+          status: 'completed',
+          answers
+        })
+      });
+      
+      const data = await res.json();
+      setSelectedSession(data.session);
+      setView('result');
+    } catch (error) {
+      console.error('Error saving exam:', error);
+    }
+    
+    setIsLoading(false);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
       hideKeyboard();
-      if (isLastQuestion()) {
-        handleFinishExam();
-      } else {
-        navigateNext();
-      }
+      if (isLastQuestion()) handleFinishExam();
+      else navigateNext();
     }
   };
 
-  const calculateScore = () => {
-    if (!results) return { correct: 0, total: 0, percentage: 0 };
-    const allResults = [
-      ...results.multiplication,
-      ...results.abacus1,
-      ...results.abacus2,
-      ...results.mental,
-      ...results.additional,
-    ];
-    const correct = allResults.filter(Boolean).length;
-    const total = allResults.length;
-    const percentage = Math.round((correct / total) * 100);
-    return { correct, total, percentage };
+  // حذف جلسة
+  const deleteSession = async (id: string) => {
+    try {
+      await fetch(`/api/exam/${id}`, { method: 'DELETE' });
+      fetchSessions();
+    } catch (error) {
+      console.error('Error deleting session:', error);
+    }
   };
 
-  const resetExam = () => {
-    setExamStarted(false);
-    setExamFinished(false);
+  // بدء امتحان جديد
+  const startNewExam = () => {
     setTimeElapsed(0);
+    setActiveSection(0);
+    setActiveQuestion(0);
+    setMarkedQuestions(new Set());
+    setQuestionTimes(Array(40).fill(0));
+    setQuestionStartTime(Date.now());
     setMultiplicationAnswers(Array(10).fill(""));
     setAbacusAnswers1(Array(5).fill(""));
     setAbacusAnswers2(Array(5).fill(""));
     setMentalAnswers(Array(10).fill(""));
     setAdditionalAnswers(Array(10).fill(""));
-    setResults(null);
-    setActiveSection(0);
-    setActiveQuestion(0);
-    setMarkedQuestions(new Set());
-    setShowMarkedList(false);
+    setView('exam');
   };
 
-  // صفحة البداية
-  if (!examStarted) {
+  // عرض تفاصيل جلسة
+  const viewSessionDetails = (session: ExamSession) => {
+    setSelectedSession(session);
+    setView('result');
+  };
+
+  // العودة للرئيسية
+  const goHome = () => {
+    setView('home');
+    setSelectedSession(null);
+  };
+
+  // ========== صفحة الرئيسية ==========
+  if (view === 'home') {
     return (
-      <div className="h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center p-4 overflow-hidden">
-        <Card className="w-full max-w-sm shadow-2xl border-0 overflow-hidden">
-          <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-5 text-center text-white">
-            <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Calculator className="w-7 h-7" />
-            </div>
-            <h1 className="text-xl font-bold mb-1">امتحان المستوى الرابع</h1>
-            <p className="text-emerald-100 text-xs">Final Exam - Level 4</p>
-          </div>
-          <CardContent className="p-5">
-            <div className="space-y-2 mb-5">
-              <div className="flex items-center gap-2 p-2 bg-emerald-50 rounded-lg text-sm">
-                <Clock className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span className="text-gray-700">الوقت: <strong>مفتوح</strong></span>
-              </div>
-              <div className="flex items-center gap-2 p-2 bg-teal-50 rounded-lg text-sm">
-                <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
-                <span className="text-gray-700">عدد الأسئلة: <strong>40 سؤال</strong></span>
-              </div>
-              <div className="flex items-center gap-2 p-2 bg-amber-50 rounded-lg text-sm">
-                <Flag className="w-4 h-4 text-amber-600 shrink-0" />
-                <span className="text-gray-700">علّم الأسئلة للمراجعة</span>
-              </div>
-            </div>
-
-            <Button
-              onClick={() => setExamStarted(true)}
-              className="w-full h-11 text-base bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-lg"
-            >
-              <Play className="w-4 h-4 mr-2" />
-              ابدأ الامتحان
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // صفحة النتائج
-  if (examFinished && results) {
-    const score = calculateScore();
-
-    return (
-      <div className="h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 p-4 overflow-auto">
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 p-4">
         <div className="max-w-md mx-auto">
-          <Card className="shadow-2xl border-0 overflow-hidden">
-            <div className={`p-5 text-center text-white ${
-              score.percentage >= 80 
-                ? "bg-gradient-to-r from-emerald-600 to-teal-600" 
-                : score.percentage >= 60 
-                  ? "bg-gradient-to-r from-amber-500 to-orange-500"
-                  : "bg-gradient-to-r from-rose-500 to-red-500"
-            }`}>
-              <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                {score.percentage >= 80 ? (
-                  <Trophy className="w-7 h-7" />
-                ) : score.percentage >= 60 ? (
-                  <Sparkles className="w-7 h-7" />
-                ) : (
-                  <XCircle className="w-7 h-7" />
-                )}
-              </div>
-              <h1 className="text-xl font-bold mb-1">انتهى الامتحان!</h1>
-              <div className="flex items-center justify-center gap-1 text-white/90 text-sm mt-2">
-                <Clock className="w-3 h-3" />
-                <span>{formatTime(timeElapsed)}</span>
-              </div>
+          {/* الهيدر */}
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-full flex items-center justify-center mx-auto mb-3 shadow-lg">
+              <Calculator className="w-8 h-8 text-white" />
             </div>
-            <CardContent className="p-5">
-              <div className="text-center mb-5">
-                <div className="text-4xl font-bold text-emerald-600 mb-1">{score.percentage}%</div>
-                <div className="text-sm text-gray-600">
-                  {score.correct} من {score.total} إجابة صحيحة
+            <h1 className="text-2xl font-bold text-gray-800">امتحان المستوى الرابع</h1>
+            <p className="text-gray-500 text-sm">Level 4 Math Exam</p>
+          </div>
+
+          {/* زر بدء امتحان جديد */}
+          <Button
+            onClick={startNewExam}
+            className="w-full h-14 text-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-lg mb-6"
+          >
+            <Play className="w-5 h-5 mr-2" />
+            ابدأ امتحان جديد
+          </Button>
+
+          {/* سجل الامتحانات */}
+          <Card className="shadow-lg">
+            <div className="p-3 bg-gray-50 border-b flex items-center gap-2">
+              <History className="w-4 h-4 text-gray-500" />
+              <span className="font-medium text-gray-700">سجل الامتحانات</span>
+              <Badge variant="outline" className="mr-auto">{examSessions.length}</Badge>
+            </div>
+            <CardContent className="p-3 max-h-96 overflow-y-auto">
+              {examSessions.length === 0 ? (
+                <p className="text-center text-gray-400 py-8">لا توجد امتحانات سابقة</p>
+              ) : (
+                <div className="space-y-2">
+                  {examSessions.map((session) => (
+                    <div key={session.id} className="bg-gray-50 rounded-lg p-3 flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        session.percentage >= 80 ? "bg-emerald-100 text-emerald-600" :
+                        session.percentage >= 60 ? "bg-amber-100 text-amber-600" :
+                        "bg-red-100 text-red-600"
+                      }`}>
+                        {session.percentage >= 80 ? <Trophy className="w-5 h-5" /> :
+                         session.percentage >= 60 ? <Sparkles className="w-5 h-5" /> :
+                         <XCircle className="w-5 h-5" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-lg">{session.percentage}%</span>
+                          <span className="text-gray-400 text-xs">{session.correctAnswers}/40</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <Clock className="w-3 h-3" />
+                          <span>{formatTime(session.totalTimeSeconds)}</span>
+                          <span>•</span>
+                          <span>{formatDate(session.createdAt)}</span>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => viewSessionDetails(session)} className="text-emerald-600">
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => deleteSession(session.id)} className="text-red-400 hover:text-red-600">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-                <Progress value={score.percentage} className="h-1.5 mt-3" />
-              </div>
-
-              <div className="space-y-2 mb-5">
-                <ResultSection title="الضرب" results={results.multiplication} correctAnswers={multiplicationProblems.map(p => p.num1 * p.num2)} userAnswers={multiplicationAnswers} />
-                <ResultSection title="Abacus (1-5)" results={results.abacus1} correctAnswers={abacusColumns1.map(col => calculateCorrectAnswer(col.numbers))} userAnswers={abacusAnswers1} />
-                <ResultSection title="Abacus (6-10)" results={results.abacus2} correctAnswers={abacusColumns2.map(col => calculateCorrectAnswer(col.numbers))} userAnswers={abacusAnswers2} />
-                <ResultSection title="الحساب الذهني" results={results.mental} correctAnswers={mentalColumns.map(col => calculateCorrectAnswer(col.numbers))} userAnswers={mentalAnswers} />
-                <ResultSection title="القسم الإضافي" results={results.additional} correctAnswers={additionalColumns.map(col => calculateCorrectAnswer(col.numbers))} userAnswers={additionalAnswers} />
-              </div>
-
-              <Button
-                onClick={resetExam}
-                className="w-full h-11 text-base bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700"
-              >
-                <RefreshCcw className="w-4 h-4 mr-2" />
-                إعادة الامتحان
-              </Button>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -438,19 +535,118 @@ export default function ExamPage() {
     );
   }
 
-  // صفحة الامتحان
+  // ========== صفحة النتائج ==========
+  if (view === 'result' && selectedSession) {
+    const wrongAnswers = selectedSession.answers.filter(a => !a.isCorrect);
+    
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
+        {/* الهيدر */}
+        <header className="bg-white/90 backdrop-blur-sm shadow-sm px-4 py-2 sticky top-0 z-10">
+          <div className="max-w-md mx-auto flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={goHome}>
+              <Home className="w-4 h-4 ml-1" />
+              الرئيسية
+            </Button>
+            <span className="font-bold text-gray-700">نتيجة الامتحان</span>
+          </div>
+        </header>
+
+        <main className="max-w-md mx-auto p-4">
+          {/* النتيجة الرئيسية */}
+          <Card className="shadow-lg mb-4 overflow-hidden">
+            <div className={`p-5 text-center text-white ${
+              selectedSession.percentage >= 80 ? "bg-gradient-to-r from-emerald-600 to-teal-600" :
+              selectedSession.percentage >= 60 ? "bg-gradient-to-r from-amber-500 to-orange-500" :
+              "bg-gradient-to-r from-rose-500 to-red-500"
+            }`}>
+              <div className="text-5xl font-bold mb-2">{selectedSession.percentage}%</div>
+              <div className="text-white/80">{selectedSession.correctAnswers} من 40 إجابة صحيحة</div>
+              <div className="flex items-center justify-center gap-2 mt-2 text-white/70 text-sm">
+                <Clock className="w-3 h-3" />
+                <span>{formatTime(selectedSession.totalTimeSeconds)}</span>
+              </div>
+            </div>
+          </Card>
+
+          {/* الأخطاء */}
+          {wrongAnswers.length > 0 && (
+            <Card className="shadow-lg mb-4">
+              <div className="p-3 bg-red-50 border-b flex items-center gap-2">
+                <XCircle className="w-4 h-4 text-red-500" />
+                <span className="font-medium text-red-700">الأسئلة الخاطئة ({wrongAnswers.length})</span>
+              </div>
+              <CardContent className="p-3 max-h-80 overflow-y-auto">
+                <div className="space-y-2">
+                  {wrongAnswers.map((answer) => (
+                    <div key={answer.id} className="bg-red-50 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge variant="outline" className="text-xs">{answer.section}</Badge>
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Clock className="w-3 h-3" />
+                          <span>{formatTime(answer.timeSeconds)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <div>
+                          <span className="text-gray-500">إجابتك: </span>
+                          <span className="text-red-600 font-bold">{answer.userAnswer || "-"}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">الصحيحة: </span>
+                          <span className="text-emerald-600 font-bold">{answer.correctAnswer}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* جميع الأسئلة */}
+          <Card className="shadow-lg">
+            <div className="p-3 bg-gray-50 border-b flex items-center gap-2">
+              <List className="w-4 h-4 text-gray-500" />
+              <span className="font-medium text-gray-700">جميع الأسئلة</span>
+            </div>
+            <CardContent className="p-3">
+              <div className="grid grid-cols-5 gap-1.5">
+                {selectedSession.answers.map((answer) => (
+                  <div
+                    key={answer.id}
+                    className={`h-8 rounded text-xs font-bold flex flex-col items-center justify-center ${
+                      answer.isCorrect
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-red-100 text-red-700"
+                    }`}
+                  >
+                    <span>{answer.globalIndex + 1}</span>
+                    <span className="text-[10px] opacity-70">{formatTime(answer.timeSeconds)}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  // ========== صفحة الامتحان ==========
   return (
     <div className="h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex flex-col overflow-hidden">
       {/* الهيدر */}
       <header className="bg-white/90 backdrop-blur-sm shrink-0 px-3 py-1.5">
         <div className="max-w-sm mx-auto flex items-center justify-between">
+          <Button variant="ghost" size="sm" onClick={goHome} className="text-gray-500">
+            <Home className="w-4 h-4 ml-1" />
+            الرئيسية
+          </Button>
           <span className="text-xs text-gray-500">{sections[activeSection].icon} {sections[activeSection].name}</span>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600">
-              <Clock className="w-3 h-3" />
-              <span className="font-mono text-xs font-bold">{formatTime(timeElapsed)}</span>
-            </div>
-            <Button onClick={handleFinishExam} variant="ghost" className="h-6 px-2 text-xs text-gray-400">إنهاء</Button>
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600">
+            <Clock className="w-3 h-3" />
+            <span className="font-mono text-xs font-bold">{formatTime(timeElapsed)}</span>
           </div>
         </div>
         <div className="max-w-sm mx-auto mt-1">
@@ -475,6 +671,7 @@ export default function ExamPage() {
             markedCount={markedQuestions.size}
             onShowList={() => setShowMarkedList(true)}
             onGoToNextMarked={markedQuestions.size > 0 ? goToNextMarked : undefined}
+            isLoading={isLoading}
           >
             <MultiplicationContent
               problem={multiplicationProblems[activeQuestion]}
@@ -505,6 +702,7 @@ export default function ExamPage() {
             markedCount={markedQuestions.size}
             onShowList={() => setShowMarkedList(true)}
             onGoToNextMarked={markedQuestions.size > 0 ? goToNextMarked : undefined}
+            isLoading={isLoading}
           >
             <AbacusContent
               numbers={abacusColumns1[activeQuestion].numbers}
@@ -535,6 +733,7 @@ export default function ExamPage() {
             markedCount={markedQuestions.size}
             onShowList={() => setShowMarkedList(true)}
             onGoToNextMarked={markedQuestions.size > 0 ? goToNextMarked : undefined}
+            isLoading={isLoading}
           >
             <AbacusContent
               numbers={abacusColumns2[activeQuestion].numbers}
@@ -565,6 +764,7 @@ export default function ExamPage() {
             markedCount={markedQuestions.size}
             onShowList={() => setShowMarkedList(true)}
             onGoToNextMarked={markedQuestions.size > 0 ? goToNextMarked : undefined}
+            isLoading={isLoading}
           >
             <MentalContent
               numbers={mentalColumns[activeQuestion].numbers}
@@ -595,6 +795,7 @@ export default function ExamPage() {
             markedCount={markedQuestions.size}
             onShowList={() => setShowMarkedList(true)}
             onGoToNextMarked={markedQuestions.size > 0 ? goToNextMarked : undefined}
+            isLoading={isLoading}
           >
             <MentalContent
               numbers={additionalColumns[activeQuestion].numbers}
@@ -657,21 +858,10 @@ export default function ExamPage() {
   );
 }
 
-// مكون بطاقة السؤال مع الأزرار المدمجة
+// مكون بطاقة السؤال
 function QuestionCard({
-  questionNumber,
-  totalQuestions,
-  isMarked,
-  onToggleMark,
-  onPrev,
-  onNext,
-  onFinish,
-  isLastQuestion,
-  hasPrev,
-  markedCount,
-  onShowList,
-  onGoToNextMarked,
-  children
+  questionNumber, totalQuestions, isMarked, onToggleMark, onPrev, onNext, onFinish,
+  isLastQuestion, hasPrev, markedCount, onShowList, onGoToNextMarked, isLoading, children
 }: {
   questionNumber: number;
   totalQuestions: number;
@@ -685,17 +875,16 @@ function QuestionCard({
   markedCount: number;
   onShowList: () => void;
   onGoToNextMarked?: () => void;
+  isLoading?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="w-full max-w-xs bg-white rounded-xl shadow-lg overflow-hidden">
-      {/* شريط الأزرار العلوي */}
       <div className="flex items-center justify-between px-2 py-1.5 bg-gray-50 border-b">
         <Button variant="ghost" size="sm" onClick={onPrev} disabled={!hasPrev} className="h-7 px-2 text-xs">
           <ChevronRight className="w-3 h-3 ml-0.5" />
           السابق
         </Button>
-        
         <div className="flex items-center gap-1">
           <button onClick={onToggleMark} className={`p-1 rounded ${isMarked ? "text-amber-500" : "text-gray-300"}`}>
             <Flag className="w-4 h-4" />
@@ -705,31 +894,21 @@ function QuestionCard({
             <List className="w-4 h-4" />
           </button>
         </div>
-        
         {isLastQuestion ? (
-          <Button size="sm" onClick={onFinish} className="h-7 px-2 text-xs bg-emerald-600 hover:bg-emerald-700">
-            <CheckCircle2 className="w-3 h-3 ml-0.5" />
-            إنهاء
+          <Button size="sm" onClick={onFinish} disabled={isLoading} className="h-7 px-2 text-xs bg-emerald-600 hover:bg-emerald-700">
+            {isLoading ? "..." : <><CheckCircle2 className="w-3 h-3 ml-0.5" />إنهاء</>}
           </Button>
         ) : (
           <Button size="sm" onClick={onNext} className="h-7 px-2 text-xs bg-emerald-600 hover:bg-emerald-700">
-            التالي
-            <ChevronLeft className="w-3 h-3 mr-0.5" />
+            التالي<ChevronLeft className="w-3 h-3 mr-0.5" />
           </Button>
         )}
       </div>
-      
-      {/* محتوى السؤال */}
-      <div className="p-3">
-        {children}
-      </div>
-      
-      {/* شريط الأسئلة المعلمة */}
+      <div className="p-3">{children}</div>
       {markedCount > 0 && onGoToNextMarked && (
         <div className="px-2 pb-2">
           <Button variant="outline" size="sm" onClick={onGoToNextMarked} className="w-full h-7 text-xs bg-amber-50 border-amber-200 text-amber-600">
-            <Flag className="w-3 h-3 ml-1" />
-            {markedCount} سؤال للمراجعة
+            <Flag className="w-3 h-3 ml-1" />{markedCount} سؤال للمراجعة
           </Button>
         </div>
       )}
@@ -737,7 +916,7 @@ function QuestionCard({
   );
 }
 
-// مكون محتوى الضرب
+// مكونات المحتوى
 function MultiplicationContent({ problem, answer, onAnswer, onKeyDown, inputRef }: {
   problem: { num1: number; num2: number };
   answer: string;
@@ -762,7 +941,6 @@ function MultiplicationContent({ problem, answer, onAnswer, onKeyDown, inputRef 
   );
 }
 
-// مكون محتوى Abacus
 function AbacusContent({ numbers, answer, onAnswer, onKeyDown, inputRef }: {
   numbers: number[];
   answer: string;
@@ -776,9 +954,7 @@ function AbacusContent({ numbers, answer, onAnswer, onKeyDown, inputRef }: {
         <div className="space-y-1">
           {numbers.map((num, i) => (
             <div key={i} className="flex items-center justify-center border-b border-gray-200 pb-1 last:border-0 last:pb-0">
-              <span className={`inline-block w-14 py-0.5 rounded text-sm font-bold ${
-                num < 0 ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-600"
-              }`}>
+              <span className={`inline-block w-14 py-0.5 rounded text-sm font-bold ${num < 0 ? "bg-red-100 text-red-600" : "bg-emerald-100 text-emerald-600"}`}>
                 {num > 0 ? "+" : ""}{num}
               </span>
             </div>
@@ -795,7 +971,6 @@ function AbacusContent({ numbers, answer, onAnswer, onKeyDown, inputRef }: {
   );
 }
 
-// مكون محتوى Mental
 function MentalContent({ numbers, answer, onAnswer, onKeyDown, inputRef }: {
   numbers: number[];
   answer: string;
@@ -809,9 +984,7 @@ function MentalContent({ numbers, answer, onAnswer, onKeyDown, inputRef }: {
         <div className="space-y-1">
           {numbers.map((num, i) => (
             <div key={i} className="flex items-center justify-center border-b border-gray-200 pb-1 last:border-0 last:pb-0">
-              <span className={`inline-block w-12 py-0.5 rounded text-xs font-bold ${
-                num < 0 ? "bg-red-100 text-red-600" : "bg-violet-100 text-violet-600"
-              }`}>
+              <span className={`inline-block w-12 py-0.5 rounded text-xs font-bold ${num < 0 ? "bg-red-100 text-red-600" : "bg-violet-100 text-violet-600"}`}>
                 {num > 0 ? "+" : ""}{num}
               </span>
             </div>
@@ -825,42 +998,5 @@ function MentalContent({ numbers, answer, onAnswer, onKeyDown, inputRef }: {
         </div>
       </div>
     </div>
-  );
-}
-
-// مكون عرض النتائج
-function ResultSection({ title, results, correctAnswers, userAnswers }: {
-  title: string;
-  results: boolean[];
-  correctAnswers: number[];
-  userAnswers: string[];
-}) {
-  const correct = results.filter(Boolean).length;
-  const total = results.length;
-
-  return (
-    <Card className="shadow">
-      <div className="py-1.5 px-3 bg-gray-50 flex items-center justify-between">
-        <span className="text-xs font-medium">{title}</span>
-        <Badge variant={correct === total ? "default" : "secondary"} className={`text-xs ${correct === total ? "bg-emerald-600" : ""}`}>
-          {correct}/{total}
-        </Badge>
-      </div>
-      <CardContent className="p-2">
-        <div className="grid grid-cols-5 gap-1">
-          {results.map((isCorrect, i) => (
-            <div key={i} className="text-center">
-              <div className={`w-4 h-4 rounded-full flex items-center justify-center mx-auto ${
-                isCorrect ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
-              }`}>
-                {isCorrect ? <CheckCircle2 className="w-2.5 h-2.5" /> : <XCircle className="w-2.5 h-2.5" />}
-              </div>
-              <div className="text-xs text-gray-500">{userAnswers[i] || "-"}</div>
-              {!isCorrect && <div className="text-xs text-emerald-600 font-semibold">{correctAnswers[i]}</div>}
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
   );
 }
