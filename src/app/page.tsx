@@ -18,7 +18,9 @@ import {
   ChevronRight,
   ChevronLeft,
   Flag,
-  Bookmark
+  Bookmark,
+  X,
+  List
 } from "lucide-react";
 
 // بيانات الامتحان
@@ -129,6 +131,7 @@ export default function ExamPage() {
   const [activeSection, setActiveSection] = useState(0);
   const [activeQuestion, setActiveQuestion] = useState(0);
   const [markedQuestions, setMarkedQuestions] = useState<Set<number>>(new Set());
+  const [showMarkedList, setShowMarkedList] = useState(false);
 
   // مرجع لحقل الإدخال
   const inputRef = useRef<HTMLInputElement>(null);
@@ -177,6 +180,20 @@ export default function ExamPage() {
 
   const isLastQuestion = () => getCurrentQuestionNumber() === getTotalQuestions();
 
+  // الحصول على معلومات السؤال من الفهرس العام
+  const getQuestionInfo = (globalIndex: number) => {
+    let section = 0;
+    let question = globalIndex;
+    for (let s = 0; s < sections.length; s++) {
+      if (question < sections[s].questions) {
+        section = s;
+        break;
+      }
+      question -= sections[s].questions;
+    }
+    return { section, question };
+  };
+
   // إخفاء لوحة المفاتيح
   const hideKeyboard = () => {
     if (inputRef.current) {
@@ -204,6 +221,22 @@ export default function ExamPage() {
     }
   };
 
+  // الانتقال للسؤال المعلم التالي
+  const goToNextMarked = () => {
+    const currentGlobal = getCurrentGlobalIndex();
+    const markedArray = Array.from(markedQuestions).sort((a, b) => a - b);
+    
+    // البحث عن أول سؤال معلم بعد السؤال الحالي
+    const nextMarked = markedArray.find(i => i > currentGlobal);
+    
+    if (nextMarked !== undefined) {
+      goToQuestion(nextMarked);
+    } else if (markedArray.length > 0) {
+      // إذا لم يوجد، انتقل لأول سؤال معلم
+      goToQuestion(markedArray[0]);
+    }
+  };
+
   // تبديل علامة المراجعة
   const toggleMark = () => {
     const globalIndex = getCurrentGlobalIndex();
@@ -221,17 +254,10 @@ export default function ExamPage() {
   // الانتقال لسؤال معين
   const goToQuestion = (globalIndex: number) => {
     hideKeyboard();
-    let section = 0;
-    let question = globalIndex;
-    for (let s = 0; s < sections.length; s++) {
-      if (question < sections[s].questions) {
-        section = s;
-        break;
-      }
-      question -= sections[s].questions;
-    }
+    const { section, question } = getQuestionInfo(globalIndex);
     setActiveSection(section);
     setActiveQuestion(question);
+    setShowMarkedList(false);
   };
 
   // المؤقت التصاعدي
@@ -327,6 +353,7 @@ export default function ExamPage() {
     setActiveSection(0);
     setActiveQuestion(0);
     setMarkedQuestions(new Set());
+    setShowMarkedList(false);
   };
 
   // صفحة البداية
@@ -356,8 +383,8 @@ export default function ExamPage() {
                 <span className="text-gray-700 text-sm">الأقسام: <strong>5 أقسام</strong></span>
               </div>
               <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg">
-                <Bookmark className="w-5 h-5 text-amber-600 shrink-0" />
-                <span className="text-gray-700 text-sm">يمكنك <strong>تعليم الأسئلة</strong> للمراجعة</span>
+                <Flag className="w-5 h-5 text-amber-600 shrink-0" />
+                <span className="text-gray-700 text-sm">علّم الأسئلة للمراجعة لاحقاً</span>
               </div>
             </div>
 
@@ -620,21 +647,43 @@ export default function ExamPage() {
       {/* شريط التنقل السفلي */}
       <footer className="bg-white/90 backdrop-blur-sm border-t shrink-0 px-4 py-2">
         <div className="max-w-md mx-auto">
-          <div className="flex justify-between items-center gap-3">
+          <div className="flex justify-between items-center gap-2">
             <Button
               variant="outline"
               onClick={navigatePrev}
               disabled={activeSection === 0 && activeQuestion === 0}
-              className="h-11 px-4 text-sm flex-1"
+              className="h-10 px-3 text-sm"
             >
               <ChevronRight className="w-4 h-4 ml-1" />
               السابق
             </Button>
             
+            {/* زر الأسئلة المعلمة */}
+            {markedQuestions.size > 0 && (
+              <Button
+                variant="outline"
+                onClick={goToNextMarked}
+                className="h-10 px-3 text-sm bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-100"
+              >
+                <Flag className="w-4 h-4 ml-1" />
+                {markedQuestions.size}
+              </Button>
+            )}
+
+            {/* زر قائمة الأسئلة */}
+            <Button
+              variant="outline"
+              onClick={() => setShowMarkedList(!showMarkedList)}
+              className="h-10 px-3 text-sm"
+            >
+              <List className="w-4 h-4 ml-1" />
+              الأسئلة
+            </Button>
+            
             {isLastQuestion() ? (
               <Button
                 onClick={handleFinishExam}
-                className="bg-emerald-600 hover:bg-emerald-700 h-11 px-4 text-sm flex-1"
+                className="bg-emerald-600 hover:bg-emerald-700 h-10 px-3 text-sm"
               >
                 <CheckCircle2 className="w-4 h-4 mr-1" />
                 إنهاء
@@ -642,7 +691,7 @@ export default function ExamPage() {
             ) : (
               <Button
                 onClick={navigateNext}
-                className="bg-emerald-600 hover:bg-emerald-700 h-11 px-4 text-sm flex-1"
+                className="bg-emerald-600 hover:bg-emerald-700 h-10 px-3 text-sm"
               >
                 التالي
                 <ChevronLeft className="w-4 h-4 mr-1" />
@@ -655,56 +704,77 @@ export default function ExamPage() {
             {Array.from({ length: getTotalQuestions() }).map((_, i) => {
               const currentGlobal = getCurrentGlobalIndex();
               const isMarked = markedQuestions.has(i);
-              const hasAnswer = (() => {
-                let section = 0;
-                let question = i;
-                for (let s = 0; s < sections.length; s++) {
-                  if (question < sections[s].questions) {
-                    section = s;
-                    break;
-                  }
-                  question -= sections[s].questions;
-                }
-                if (section === 0) return multiplicationAnswers[question] !== "";
-                if (section === 1) return abacusAnswers1[question] !== "";
-                if (section === 2) return abacusAnswers2[question] !== "";
-                if (section === 3) return mentalAnswers[question] !== "";
-                return additionalAnswers[question] !== "";
-              })();
 
               return (
                 <button
                   key={i}
                   onClick={() => goToQuestion(i)}
-                  className={`relative w-2 h-2 rounded-full transition-all ${
+                  className={`relative w-2.5 h-2.5 rounded-full transition-all ${
                     i === currentGlobal
-                      ? "bg-emerald-600 w-3"
+                      ? "bg-emerald-600 w-4"
                       : isMarked
                         ? "bg-amber-400"
-                        : hasAnswer
-                          ? "bg-emerald-300"
-                          : "bg-gray-300"
+                        : "bg-gray-300"
                   }`}
-                >
-                  {isMarked && i !== currentGlobal && (
-                    <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-amber-500 rounded-full" />
-                  )}
-                </button>
+                />
               );
             })}
           </div>
-
-          {/* الأسئلة المعلمة */}
-          {markedQuestions.size > 0 && (
-            <div className="flex items-center justify-center gap-2 mt-2">
-              <Flag className="w-3 h-3 text-amber-500" />
-              <span className="text-xs text-gray-500">
-                {markedQuestions.size} سؤال للمراجعة
-              </span>
-            </div>
-          )}
         </div>
       </footer>
+
+      {/* قائمة الأسئلة المعلمة */}
+      {showMarkedList && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowMarkedList(false)}>
+          <Card className="w-full max-w-sm max-h-[70vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <CardHeader className="bg-gradient-to-r from-amber-500 to-orange-500 text-white py-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Flag className="w-4 h-4" />
+                  الأسئلة المعلمة
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowMarkedList(false)}
+                  className="h-8 w-8 p-0 text-white hover:bg-white/20"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-3 max-h-80 overflow-y-auto">
+              {markedQuestions.size === 0 ? (
+                <p className="text-center text-gray-500 py-4">لا توجد أسئلة معلمة</p>
+              ) : (
+                <div className="space-y-2">
+                  {Array.from(markedQuestions).sort((a, b) => a - b).map(globalIndex => {
+                    const { section, question } = getQuestionInfo(globalIndex);
+                    const currentGlobal = getCurrentGlobalIndex();
+                    
+                    return (
+                      <Button
+                        key={globalIndex}
+                        variant="outline"
+                        onClick={() => goToQuestion(globalIndex)}
+                        className={`w-full justify-start h-12 ${
+                          globalIndex === currentGlobal ? "border-emerald-500 bg-emerald-50" : ""
+                        }`}
+                      >
+                        <Flag className="w-4 h-4 ml-2 text-amber-500" />
+                        <span className="font-bold ml-2">{globalIndex + 1}</span>
+                        <span className="text-gray-500 text-sm">
+                          {sections[section].icon} {sections[section].name} - سؤال {question + 1}
+                        </span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
