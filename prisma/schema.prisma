@@ -1,9 +1,7 @@
-// This is your Prisma schema file,
-// learn more about it in docs: https://pris.ly/d/prisma-schema
-
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -12,55 +10,62 @@ generator client {
 
 // جلسة امتحان كاملة
 model ExamSession {
-  id          String   @id @default(cuid())
-  studentName String?  // اسم الطالب (اختياري)
+  id String @id @default(uuid())
+  
+  studentName String?
   
   // النتيجة الإجمالية
-  totalQuestions Int      @default(40)
-  correctAnswers Int     @default(0)
-  percentage     Float    @default(0)
+  totalQuestions Int @default(40)
+  correctAnswers Int @default(0)
+  percentage     Float @default(0)
   
   // الوقت
-  totalTimeSeconds Int   @default(0)  // الوقت الكلي بالثواني
+  totalTimeSeconds Int @default(0)
   
   // حالة الامتحان
-  status        String   @default("completed") // completed, abandoned
+  status String @default("completed")
   
-  // تاريخ الامتحان
-  startedAt    DateTime @default(now())
-  finishedAt   DateTime @default(now())
-  createdAt    DateTime @default(now())
+  // التواريخ
+  startedAt  DateTime @default(now())
+  finishedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
   
   // العلاقات
   answers ExamAnswer[]
+  
+  @@index([createdAt(sort: Desc)])
+  @@map("exam_sessions")
 }
 
 // إجابة سؤال واحد
 model ExamAnswer {
-  id            String   @id @default(cuid())
+  id String @id @default(uuid())
+  
   examSessionId String
+  examSession   ExamSession @relation(fields: [examSessionId], references: [id], onDelete: Cascade)
   
   // معلومات السؤال
-  section       String   // الضرب, Abacus1, Abacus2, Mental, Additional
-  questionIndex Int       // رقم السؤال في القسم
-  globalIndex   Int       // رقم السؤال الكلي (1-40)
+  section       String
+  questionIndex Int
+  globalIndex   Int
   
   // السؤال والإجابة
-  questionData  String   // بيانات السؤال (JSON)
-  userAnswer    String?   // إجابة المستخدم
-  correctAnswer Int      // الإجابة الصحيحة
+  questionData  String
+  userAnswer    String?
+  correctAnswer Int
   
   // النتيجة
-  isCorrect     Boolean  @default(false)
+  isCorrect Boolean @default(false)
   
   // الوقت
-  timeSeconds   Int      @default(0)  // الوقت المستغرق في هذا السؤال
+  timeSeconds Int @default(0)
   
-  // هل تم تعليم السؤال
-  isMarked       Boolean  @default(false)
+  // تعليم السؤال
+  isMarked Boolean @default(false)
   
-  createdAt     DateTime @default(now())
+  createdAt DateTime @default(now())
   
-  // العلاقات
-  examSession ExamSession @relation(fields: [examSessionId], references: [id], onDelete: Cascade)
+  @@index([examSessionId])
+  @@index([globalIndex])
+  @@map("exam_answers")
 }
