@@ -84,18 +84,16 @@ const calculateCorrectAnswer = (numbers: number[]): number => {
 function NumberInput({ 
   value, 
   onChange, 
-  className = "",
   size = "normal"
 }: { 
   value: string; 
   onChange: (value: string) => void;
-  className?: string;
   size?: "small" | "normal" | "large";
 }) {
   const sizeClasses = {
-    small: "w-10 h-8 text-sm",
-    normal: "w-16 h-10 text-base",
-    large: "w-20 h-12 text-lg"
+    small: "w-16 h-10 text-base",
+    normal: "w-20 h-12 text-lg",
+    large: "w-24 h-14 text-xl"
   };
 
   return (
@@ -106,12 +104,11 @@ function NumberInput({
       value={value}
       onChange={(e) => {
         const val = e.target.value;
-        // السماح بالأرقام والإشارة السالبة فقط
         if (/^-?\d*$/.test(val)) {
           onChange(val);
         }
       }}
-      className={`${sizeClasses[size]} text-center font-semibold border-2 focus:border-emerald-500 focus:ring-emerald-500 ${className}`}
+      className={`${sizeClasses[size]} text-center font-bold border-2 border-emerald-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200`}
       placeholder="؟"
       autoComplete="off"
     />
@@ -121,8 +118,9 @@ function NumberInput({
 export default function ExamPage() {
   const [examStarted, setExamStarted] = useState(false);
   const [examFinished, setExamFinished] = useState(false);
-  const [timeElapsed, setTimeElapsed] = useState(0); // الوقت التصاعدي
+  const [timeElapsed, setTimeElapsed] = useState(0);
   const [activeSection, setActiveSection] = useState(0);
+  const [activeQuestion, setActiveQuestion] = useState(0);
 
   // الإجابات
   const [multiplicationAnswers, setMultiplicationAnswers] = useState<string[]>(Array(10).fill(""));
@@ -143,11 +141,9 @@ export default function ExamPage() {
   // المؤقت التصاعدي
   useEffect(() => {
     if (!examStarted || examFinished) return;
-
     const timer = setInterval(() => {
       setTimeElapsed((prev) => prev + 1);
     }, 1000);
-
     return () => clearInterval(timer);
   }, [examStarted, examFinished]);
 
@@ -158,7 +154,6 @@ export default function ExamPage() {
   };
 
   const handleFinishExam = useCallback(() => {
-    // حساب النتائج
     const multiplicationResults = multiplicationProblems.map((p, i) => {
       const correct = p.num1 * p.num2;
       return parseInt(multiplicationAnswers[i]) === correct;
@@ -197,7 +192,6 @@ export default function ExamPage() {
 
   const calculateScore = () => {
     if (!results) return { correct: 0, total: 0, percentage: 0 };
-
     const allResults = [
       ...results.multiplication,
       ...results.abacus1,
@@ -205,11 +199,9 @@ export default function ExamPage() {
       ...results.mental,
       ...results.additional,
     ];
-
     const correct = allResults.filter(Boolean).length;
     const total = allResults.length;
     const percentage = Math.round((correct / total) * 100);
-
     return { correct, total, percentage };
   };
 
@@ -224,15 +216,44 @@ export default function ExamPage() {
     setAdditionalAnswers(Array(10).fill(""));
     setResults(null);
     setActiveSection(0);
+    setActiveQuestion(0);
   };
 
   const sections = [
-    { name: "الضرب", icon: "✖️", shortName: "ضرب" },
-    { name: "Abacus 1", icon: "🧮", shortName: "Ab1" },
-    { name: "Abacus 2", icon: "🧮", shortName: "Ab2" },
-    { name: "Mental", icon: "🧠", shortName: "ذهني" },
-    { name: "إضافي", icon: "📝", shortName: "إضافي" },
+    { name: "الضرب", icon: "✖️", questions: 10 },
+    { name: "Abacus 1", icon: "🧮", questions: 5 },
+    { name: "Abacus 2", icon: "🧮", questions: 5 },
+    { name: "Mental", icon: "🧠", questions: 10 },
+    { name: "إضافي", icon: "📝", questions: 10 },
   ];
+
+  const getTotalQuestions = () => sections.reduce((sum, s) => sum + s.questions, 0);
+  
+  const getCurrentQuestionNumber = () => {
+    let total = 0;
+    for (let i = 0; i < activeSection; i++) {
+      total += sections[i].questions;
+    }
+    return total + activeQuestion + 1;
+  };
+
+  const navigateNext = () => {
+    if (activeQuestion < sections[activeSection].questions - 1) {
+      setActiveQuestion(activeQuestion + 1);
+    } else if (activeSection < sections.length - 1) {
+      setActiveSection(activeSection + 1);
+      setActiveQuestion(0);
+    }
+  };
+
+  const navigatePrev = () => {
+    if (activeQuestion > 0) {
+      setActiveQuestion(activeQuestion - 1);
+    } else if (activeSection > 0) {
+      setActiveSection(activeSection - 1);
+      setActiveQuestion(sections[activeSection - 1].questions - 1);
+    }
+  };
 
   // صفحة البداية
   if (!examStarted) {
@@ -268,6 +289,7 @@ export default function ExamPage() {
                 <div key={i} className="flex items-center gap-2 text-gray-600 text-sm sm:text-base">
                   <span className="text-lg">{section.icon}</span>
                   <span>{section.name}</span>
+                  <Badge variant="outline" className="text-xs">{section.questions} أسئلة</Badge>
                 </div>
               ))}
             </div>
@@ -325,7 +347,6 @@ export default function ExamPage() {
                 <Progress value={score.percentage} className="h-2 sm:h-3 mt-4" />
               </div>
 
-              {/* تفاصيل كل قسم */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
                 <ResultSection 
                   title="قسم الضرب" 
@@ -374,383 +395,308 @@ export default function ExamPage() {
     );
   }
 
-  // صفحة الامتحان
+  // صفحة الامتحان - سؤال واحد في كل مرة
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex flex-col">
       {/* الهيدر */}
       <header className="bg-white/90 backdrop-blur-sm shadow-sm sticky top-0 z-50 shrink-0">
-        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2 sm:py-3">
+        <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-3">
               <Calculator className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-600" />
               <div>
-                <h1 className="font-bold text-gray-800 text-sm sm:text-base">المستوى الرابع</h1>
-                <p className="text-xs text-gray-500 hidden sm:block">Level 4 Final Exam</p>
+                <h1 className="font-bold text-gray-800 text-sm sm:text-base">{sections[activeSection].icon} {sections[activeSection].name}</h1>
+                <p className="text-xs text-gray-500">السؤال {activeQuestion + 1} من {sections[activeSection].questions}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 sm:gap-4">
-              <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-full bg-emerald-100 text-emerald-600">
-                <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="font-mono font-bold text-base sm:text-lg">{formatTime(timeElapsed)}</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-600">
+                <Clock className="w-4 h-4" />
+                <span className="font-mono font-bold text-sm">{formatTime(timeElapsed)}</span>
               </div>
               <Button 
                 onClick={handleFinishExam}
-                className="bg-emerald-600 hover:bg-emerald-700 h-8 sm:h-10 text-xs sm:text-sm px-3 sm:px-4"
+                className="bg-emerald-600 hover:bg-emerald-700 h-9 px-4 text-sm"
               >
-                <CheckCircle2 className="w-4 h-4 mr-1 sm:mr-2" />
-                <span className="hidden sm:inline">إنهاء</span>
-                <span className="sm:hidden">إنهاء</span>
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                إنهاء
               </Button>
             </div>
           </div>
-
+          
           {/* شريط التقدم */}
-          <div className="mt-2 sm:mt-3 flex gap-1 sm:gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            {sections.map((section, i) => (
-              <Button
-                key={i}
-                variant={activeSection === i ? "default" : "outline"}
-                size="sm"
-                onClick={() => setActiveSection(i)}
-                className={`shrink-0 h-8 sm:h-9 text-xs sm:text-sm px-2 sm:px-3 ${activeSection === i ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
-              >
-                <span className="mr-1">{section.icon}</span>
-                <span className="hidden sm:inline">{section.name}</span>
-                <span className="sm:hidden">{section.shortName}</span>
-              </Button>
-            ))}
+          <div className="mt-3">
+            <Progress 
+              value={(getCurrentQuestionNumber() / getTotalQuestions()) * 100} 
+              className="h-2"
+            />
+            <p className="text-xs text-gray-500 mt-1 text-center">
+              السؤال {getCurrentQuestionNumber()} من {getTotalQuestions()}
+            </p>
           </div>
         </div>
       </header>
 
-      {/* محتوى الامتحان */}
-      <main className="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-4 py-4 sm:py-6">
-        {/* قسم الضرب */}
-        {activeSection === 0 && (
-          <Card className="shadow-lg border-0">
-            <CardHeader className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-t-lg py-3 sm:py-4">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <span className="text-xl sm:text-2xl">✖️</span>
-                قسم الضرب - Multiplication
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 sm:p-6">
-              <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">
-                {multiplicationProblems.map((problem, i) => (
-                  <div key={i} className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <Badge variant="outline" className="text-xs">سؤال {i + 1}</Badge>
-                    </div>
-                    <div className="flex items-center justify-center gap-1 sm:gap-2 text-lg sm:text-xl font-semibold flex-wrap">
-                      <span>{problem.num1}</span>
-                      <span className="text-emerald-600">×</span>
-                      <span>{problem.num2}</span>
-                      <span>=</span>
-                      <NumberInput
-                        value={multiplicationAnswers[i]}
-                        onChange={(val) => {
-                          const newAnswers = [...multiplicationAnswers];
-                          newAnswers[i] = val;
-                          setMultiplicationAnswers(newAnswers);
-                        }}
-                        size="normal"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+      {/* محتوى السؤال */}
+      <main className="flex-1 flex items-center justify-center p-4">
+        <Card className="w-full max-w-lg shadow-xl border-0">
+          <CardHeader className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-t-lg py-4">
+            <CardTitle className="flex items-center justify-center gap-2 text-lg">
+              <Badge className="bg-white/20 text-white text-base px-3 py-1">
+                سؤال {activeQuestion + 1}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            {/* قسم الضرب */}
+            {activeSection === 0 && (
+              <MultiplicationQuestion
+                index={activeQuestion}
+                problem={multiplicationProblems[activeQuestion]}
+                answer={multiplicationAnswers[activeQuestion]}
+                onAnswer={(val) => {
+                  const newAnswers = [...multiplicationAnswers];
+                  newAnswers[activeQuestion] = val;
+                  setMultiplicationAnswers(newAnswers);
+                }}
+              />
+            )}
 
-        {/* قسم Abacus 1 */}
-        {activeSection === 1 && (
-          <Card className="shadow-lg border-0">
-            <CardHeader className="bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-t-lg py-3 sm:py-4">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <span className="text-xl sm:text-2xl">🧮</span>
-                قسم Abacus (الأعمدة 1-5)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2 sm:p-6">
-              <div className="overflow-x-auto -mx-2 sm:mx-0">
-                <table className="w-full border-collapse min-w-[400px]">
-                  <thead>
-                    <tr>
-                      <th className="p-1 sm:p-2 text-xs sm:text-sm"></th>
-                      {abacusColumns1.map((col) => (
-                        <th key={col.id} className="p-1 sm:p-2 text-center font-bold text-emerald-600 text-xs sm:text-sm">
-                          {col.id}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[0, 1, 2, 3, 4, 5, 6].map((rowIndex) => (
-                      <tr key={rowIndex} className={rowIndex % 2 === 0 ? "bg-gray-50" : ""}>
-                        <td className="p-1 sm:p-2 text-gray-400 text-xs">صف {rowIndex + 1}</td>
-                        {abacusColumns1.map((col) => (
-                          <td key={col.id} className="p-1 sm:p-2 text-center">
-                            <span className={`inline-block w-10 sm:w-12 py-1 rounded text-xs sm:text-sm ${
-                              col.numbers[rowIndex] < 0 
-                                ? "bg-red-100 text-red-600" 
-                                : "bg-emerald-100 text-emerald-600"
-                            }`}>
-                              {col.numbers[rowIndex] > 0 ? "+" : ""}{col.numbers[rowIndex]}
-                            </span>
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                    <tr className="bg-emerald-50">
-                      <td className="p-1 sm:p-2 font-bold text-emerald-600 text-xs sm:text-sm">الناتج</td>
-                      {abacusColumns1.map((col, colIndex) => (
-                        <td key={col.id} className="p-1 sm:p-2 text-center">
-                          <NumberInput
-                            value={abacusAnswers1[colIndex]}
-                            onChange={(val) => {
-                              const newAnswers = [...abacusAnswers1];
-                              newAnswers[colIndex] = val;
-                              setAbacusAnswers1(newAnswers);
-                            }}
-                            size="normal"
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            {/* قسم Abacus 1 */}
+            {activeSection === 1 && (
+              <AbacusQuestion
+                column={abacusColumns1[activeQuestion]}
+                answer={abacusAnswers1[activeQuestion]}
+                onAnswer={(val) => {
+                  const newAnswers = [...abacusAnswers1];
+                  newAnswers[activeQuestion] = val;
+                  setAbacusAnswers1(newAnswers);
+                }}
+              />
+            )}
 
-        {/* قسم Abacus 2 */}
-        {activeSection === 2 && (
-          <Card className="shadow-lg border-0">
-            <CardHeader className="bg-gradient-to-r from-cyan-600 to-sky-600 text-white rounded-t-lg py-3 sm:py-4">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <span className="text-xl sm:text-2xl">🧮</span>
-                قسم Abacus (الأعمدة 6-10)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2 sm:p-6">
-              <div className="overflow-x-auto -mx-2 sm:mx-0">
-                <table className="w-full border-collapse min-w-[450px]">
-                  <thead>
-                    <tr>
-                      <th className="p-1 sm:p-2 text-xs sm:text-sm"></th>
-                      {abacusColumns2.map((col) => (
-                        <th key={col.id} className="p-1 sm:p-2 text-center font-bold text-cyan-600 text-xs sm:text-sm">
-                          {col.id}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[0, 1, 2, 3].map((rowIndex) => (
-                      <tr key={rowIndex} className={rowIndex % 2 === 0 ? "bg-gray-50" : ""}>
-                        <td className="p-1 sm:p-2 text-gray-400 text-xs">صف {rowIndex + 1}</td>
-                        {abacusColumns2.map((col) => (
-                          <td key={col.id} className="p-1 sm:p-2 text-center">
-                            <span className={`inline-block w-12 sm:w-16 py-1 rounded text-xs sm:text-sm ${
-                              col.numbers[rowIndex] < 0 
-                                ? "bg-red-100 text-red-600" 
-                                : "bg-cyan-100 text-cyan-600"
-                            }`}>
-                              {col.numbers[rowIndex] > 0 ? "+" : ""}{col.numbers[rowIndex]}
-                            </span>
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                    <tr className="bg-cyan-50">
-                      <td className="p-1 sm:p-2 font-bold text-cyan-600 text-xs sm:text-sm">الناتج</td>
-                      {abacusColumns2.map((col, colIndex) => (
-                        <td key={col.id} className="p-1 sm:p-2 text-center">
-                          <NumberInput
-                            value={abacusAnswers2[colIndex]}
-                            onChange={(val) => {
-                              const newAnswers = [...abacusAnswers2];
-                              newAnswers[colIndex] = val;
-                              setAbacusAnswers2(newAnswers);
-                            }}
-                            size="normal"
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            {/* قسم Abacus 2 */}
+            {activeSection === 2 && (
+              <AbacusQuestion
+                column={abacusColumns2[activeQuestion]}
+                answer={abacusAnswers2[activeQuestion]}
+                onAnswer={(val) => {
+                  const newAnswers = [...abacusAnswers2];
+                  newAnswers[activeQuestion] = val;
+                  setAbacusAnswers2(newAnswers);
+                }}
+              />
+            )}
 
-        {/* قسم Mental */}
-        {activeSection === 3 && (
-          <Card className="shadow-lg border-0">
-            <CardHeader className="bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-t-lg py-3 sm:py-4">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <span className="text-xl sm:text-2xl">🧠</span>
-                الحساب الذهني - Mental Math
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2 sm:p-6">
-              <div className="overflow-x-auto -mx-2 sm:mx-0">
-                <table className="w-full border-collapse min-w-[500px]">
-                  <thead>
-                    <tr>
-                      <th className="p-1 text-xs"></th>
-                      {mentalColumns.map((col) => (
-                        <th key={col.id} className="p-1 text-center font-bold text-violet-600 text-xs">
-                          {col.id}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[0, 1, 2, 3, 4, 5, 6].map((rowIndex) => (
-                      <tr key={rowIndex} className={rowIndex % 2 === 0 ? "bg-gray-50" : ""}>
-                        <td className="p-1 text-gray-400 text-xs">صف {rowIndex + 1}</td>
-                        {mentalColumns.map((col) => (
-                          <td key={col.id} className="p-1 text-center">
-                            <span className={`inline-block w-7 sm:w-8 py-0.5 rounded text-xs ${
-                              col.numbers[rowIndex] < 0 
-                                ? "bg-red-100 text-red-600" 
-                                : "bg-violet-100 text-violet-600"
-                            }`}>
-                              {col.numbers[rowIndex] > 0 ? "+" : ""}{col.numbers[rowIndex]}
-                            </span>
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                    <tr className="bg-violet-50">
-                      <td className="p-1 font-bold text-violet-600 text-xs">الناتج</td>
-                      {mentalColumns.map((col, colIndex) => (
-                        <td key={col.id} className="p-1 text-center">
-                          <NumberInput
-                            value={mentalAnswers[colIndex]}
-                            onChange={(val) => {
-                              const newAnswers = [...mentalAnswers];
-                              newAnswers[colIndex] = val;
-                              setMentalAnswers(newAnswers);
-                            }}
-                            size="small"
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            {/* قسم Mental */}
+            {activeSection === 3 && (
+              <MentalQuestion
+                column={mentalColumns[activeQuestion]}
+                answer={mentalAnswers[activeQuestion]}
+                onAnswer={(val) => {
+                  const newAnswers = [...mentalAnswers];
+                  newAnswers[activeQuestion] = val;
+                  setMentalAnswers(newAnswers);
+                }}
+              />
+            )}
 
-        {/* قسم إضافي */}
-        {activeSection === 4 && (
-          <Card className="shadow-lg border-0">
-            <CardHeader className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-t-lg py-3 sm:py-4">
-              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                <span className="text-xl sm:text-2xl">📝</span>
-                القسم الإضافي
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-2 sm:p-6">
-              <div className="overflow-x-auto -mx-2 sm:mx-0">
-                <table className="w-full border-collapse min-w-[500px]">
-                  <thead>
-                    <tr>
-                      <th className="p-1 text-xs"></th>
-                      {additionalColumns.map((col) => (
-                        <th key={col.id} className="p-1 text-center font-bold text-amber-600 text-xs">
-                          {col.id}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[0, 1, 2].map((rowIndex) => (
-                      <tr key={rowIndex} className={rowIndex % 2 === 0 ? "bg-gray-50" : ""}>
-                        <td className="p-1 text-gray-400 text-xs">صف {rowIndex + 1}</td>
-                        {additionalColumns.map((col) => (
-                          <td key={col.id} className="p-1 text-center">
-                            <span className={`inline-block w-10 sm:w-12 py-1 rounded text-xs sm:text-sm ${
-                              col.numbers[rowIndex] < 0 
-                                ? "bg-red-100 text-red-600" 
-                                : "bg-amber-100 text-amber-600"
-                            }`}>
-                              {col.numbers[rowIndex] > 0 ? "+" : ""}{col.numbers[rowIndex]}
-                            </span>
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                    <tr className="bg-amber-50">
-                      <td className="p-1 font-bold text-amber-600 text-xs">الناتج</td>
-                      {additionalColumns.map((col, colIndex) => (
-                        <td key={col.id} className="p-1 text-center">
-                          <NumberInput
-                            value={additionalAnswers[colIndex]}
-                            onChange={(val) => {
-                              const newAnswers = [...additionalAnswers];
-                              newAnswers[colIndex] = val;
-                              setAdditionalAnswers(newAnswers);
-                            }}
-                            size="small"
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            {/* قسم إضافي */}
+            {activeSection === 4 && (
+              <MentalQuestion
+                column={additionalColumns[activeQuestion]}
+                answer={additionalAnswers[activeQuestion]}
+                onAnswer={(val) => {
+                  const newAnswers = [...additionalAnswers];
+                  newAnswers[activeQuestion] = val;
+                  setAdditionalAnswers(newAnswers);
+                }}
+              />
+            )}
+          </CardContent>
+        </Card>
       </main>
 
       {/* شريط التنقل السفلي */}
       <footer className="bg-white/90 backdrop-blur-sm border-t shrink-0 sticky bottom-0">
-        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3">
-          <div className="flex justify-between items-center gap-2">
+        <div className="max-w-lg mx-auto px-4 py-3">
+          <div className="flex justify-between items-center gap-4">
             <Button
               variant="outline"
-              onClick={() => setActiveSection(Math.max(0, activeSection - 1))}
-              disabled={activeSection === 0}
-              className="h-10 sm:h-11 px-3 sm:px-4 text-sm"
+              onClick={navigatePrev}
+              disabled={activeSection === 0 && activeQuestion === 0}
+              className="h-12 px-6 text-base flex-1"
             >
-              <ChevronRight className="w-4 h-4 ml-1" />
+              <ChevronRight className="w-5 h-5 ml-1" />
               السابق
             </Button>
             
-            <div className="flex gap-1">
-              {sections.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setActiveSection(i)}
-                  className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full transition-all ${
-                    activeSection === i 
-                      ? "bg-emerald-600 w-4 sm:w-6" 
-                      : "bg-gray-300"
-                  }`}
-                />
-              ))}
-            </div>
-            
-            <Button
-              onClick={() => setActiveSection(Math.min(4, activeSection + 1))}
-              disabled={activeSection === 4}
-              className="bg-emerald-600 hover:bg-emerald-700 h-10 sm:h-11 px-3 sm:px-4 text-sm"
-            >
-              التالي
-              <ChevronLeft className="w-4 h-4 mr-1" />
-            </Button>
+            {getCurrentQuestionNumber() === getTotalQuestions() ? (
+              <Button
+                onClick={handleFinishExam}
+                className="bg-emerald-600 hover:bg-emerald-700 h-12 px-6 text-base flex-1"
+              >
+                <CheckCircle2 className="w-5 h-5 mr-2" />
+                إنهاء الامتحان
+              </Button>
+            ) : (
+              <Button
+                onClick={navigateNext}
+                className="bg-emerald-600 hover:bg-emerald-700 h-12 px-6 text-base flex-1"
+              >
+                التالي
+                <ChevronLeft className="w-5 h-5 mr-1" />
+              </Button>
+            )}
+          </div>
+          
+          {/* نقاط التنقل */}
+          <div className="flex justify-center gap-2 mt-3 flex-wrap">
+            {sections.map((section, sIndex) => (
+              <div key={sIndex} className="flex gap-1">
+                {Array.from({ length: section.questions }).map((_, qIndex) => {
+                  const globalIndex = sections.slice(0, sIndex).reduce((sum, s) => sum + s.questions, 0) + qIndex;
+                  const currentGlobal = getCurrentQuestionNumber() - 1;
+                  return (
+                    <button
+                      key={qIndex}
+                      onClick={() => {
+                        setActiveSection(sIndex);
+                        setActiveQuestion(qIndex);
+                      }}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        globalIndex === currentGlobal
+                          ? "bg-emerald-600 w-4"
+                          : globalIndex < currentGlobal
+                            ? "bg-emerald-300"
+                            : "bg-gray-300"
+                      }`}
+                    />
+                  );
+                })}
+              </div>
+            ))}
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+// مكون سؤال الضرب
+function MultiplicationQuestion({ 
+  index, 
+  problem, 
+  answer, 
+  onAnswer 
+}: { 
+  index: number;
+  problem: { num1: number; num2: number };
+  answer: string;
+  onAnswer: (val: string) => void;
+}) {
+  return (
+    <div className="text-center">
+      <div className="flex items-center justify-center gap-4 text-3xl sm:text-4xl font-bold mb-8">
+        <span className="text-gray-700">{problem.num1}</span>
+        <span className="text-emerald-600 text-2xl">✕</span>
+        <span className="text-gray-700">{problem.num2}</span>
+      </div>
+      
+      <div className="border-t-4 border-emerald-200 pt-6">
+        <div className="flex items-center justify-center gap-3 text-3xl font-bold">
+          <span className="text-emerald-600 text-2xl">=</span>
+          <NumberInput
+            value={answer}
+            onChange={onAnswer}
+            size="large"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// مكون سؤال Abacus
+function AbacusQuestion({ 
+  column, 
+  answer, 
+  onAnswer 
+}: { 
+  column: { id: number; numbers: number[] };
+  answer: string;
+  onAnswer: (val: string) => void;
+}) {
+  return (
+    <div className="text-center">
+      <div className="bg-gray-50 rounded-lg p-4 mb-6">
+        <div className="space-y-2">
+          {column.numbers.map((num, i) => (
+            <div key={i} className="flex items-center justify-center border-b-2 border-gray-200 pb-2 last:border-0 last:pb-0">
+              <span className={`inline-block w-20 py-2 rounded-lg text-xl font-bold ${
+                num < 0 
+                  ? "bg-red-100 text-red-600" 
+                  : "bg-emerald-100 text-emerald-600"
+              }`}>
+                {num > 0 ? "+" : ""}{num}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      <div className="border-t-4 border-emerald-200 pt-6">
+        <p className="text-gray-600 mb-3">الناتج:</p>
+        <div className="flex items-center justify-center">
+          <NumberInput
+            value={answer}
+            onChange={onAnswer}
+            size="large"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// مكون سؤال Mental
+function MentalQuestion({ 
+  column, 
+  answer, 
+  onAnswer 
+}: { 
+  column: { id: number; numbers: number[] };
+  answer: string;
+  onAnswer: (val: string) => void;
+}) {
+  return (
+    <div className="text-center">
+      <div className="bg-gray-50 rounded-lg p-4 mb-6">
+        <div className="space-y-2">
+          {column.numbers.map((num, i) => (
+            <div key={i} className="flex items-center justify-center border-b-2 border-gray-200 pb-2 last:border-0 last:pb-0">
+              <span className={`inline-block w-16 py-1.5 rounded-lg text-lg font-bold ${
+                num < 0 
+                  ? "bg-red-100 text-red-600" 
+                  : "bg-violet-100 text-violet-600"
+              }`}>
+                {num > 0 ? "+" : ""}{num}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      
+      <div className="border-t-4 border-violet-200 pt-6">
+        <p className="text-gray-600 mb-3">الناتج:</p>
+        <div className="flex items-center justify-center">
+          <NumberInput
+            value={answer}
+            onChange={onAnswer}
+            size="large"
+          />
+        </div>
+      </div>
     </div>
   );
 }
