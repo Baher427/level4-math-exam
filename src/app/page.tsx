@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,6 @@ import {
   ChevronRight,
   ChevronLeft,
   Flag,
-  Bookmark,
   X,
   List
 } from "lucide-react";
@@ -226,13 +225,11 @@ export default function ExamPage() {
     const currentGlobal = getCurrentGlobalIndex();
     const markedArray = Array.from(markedQuestions).sort((a, b) => a - b);
     
-    // البحث عن أول سؤال معلم بعد السؤال الحالي
     const nextMarked = markedArray.find(i => i > currentGlobal);
     
     if (nextMarked !== undefined) {
       goToQuestion(nextMarked);
     } else if (markedArray.length > 0) {
-      // إذا لم يوجد، انتقل لأول سؤال معلم
       goToQuestion(markedArray[0]);
     }
   };
@@ -509,9 +506,7 @@ export default function ExamPage() {
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Calculator className="w-5 h-5 text-emerald-600" />
-              <div>
-                <h1 className="font-bold text-gray-800 text-sm">{sections[activeSection].icon} {sections[activeSection].name}</h1>
-              </div>
+              <span className="font-bold text-gray-800 text-sm">{sections[activeSection].icon} {sections[activeSection].name}</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-100 text-emerald-600">
@@ -534,125 +529,117 @@ export default function ExamPage() {
               value={(getCurrentQuestionNumber() / getTotalQuestions()) * 100} 
               className="h-1.5"
             />
-            <p className="text-xs text-gray-400 mt-1 text-center">
-              {getCurrentQuestionNumber()} / {getTotalQuestions()}
-            </p>
           </div>
         </div>
       </header>
 
-      {/* محتوى السؤال - يملأ الشاشة */}
-      <main className="flex-1 flex items-center justify-center p-4 overflow-hidden">
-        <Card className="w-full max-w-md shadow-xl border-0">
-          <CardHeader className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-t-lg py-3">
-            <CardTitle className="flex items-center justify-between text-base px-2">
-              <div className="flex items-center gap-2">
-                <Badge className="bg-white/20 text-white text-sm px-3 py-0.5">
-                  سؤال {activeQuestion + 1}
-                </Badge>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={toggleMark}
-                className={`h-8 w-8 p-0 rounded-full ${
-                  markedQuestions.has(getCurrentGlobalIndex()) 
-                    ? "bg-amber-400 text-white hover:bg-amber-500" 
-                    : "bg-white/20 text-white hover:bg-white/30"
-                }`}
-              >
-                <Flag className="w-4 h-4" />
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4">
-            {/* قسم الضرب */}
-            {activeSection === 0 && (
-              <MultiplicationQuestion
-                problem={multiplicationProblems[activeQuestion]}
-                answer={multiplicationAnswers[activeQuestion]}
-                onAnswer={(val) => {
-                  const newAnswers = [...multiplicationAnswers];
-                  newAnswers[activeQuestion] = val;
-                  setMultiplicationAnswers(newAnswers);
-                }}
-                onKeyDown={handleKeyDown}
-                inputRef={inputRef}
-              />
-            )}
+      {/* محتوى السؤال */}
+      <main className="flex-1 flex flex-col items-center justify-center p-4 overflow-hidden">
+        {/* رقم السؤال وعلم المراجعة */}
+        <div className="w-full max-w-sm flex items-center justify-between mb-4">
+          <span className="text-gray-500 text-sm">
+            سؤال {activeQuestion + 1} من {sections[activeSection].questions}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleMark}
+            className={`h-8 px-3 text-sm ${
+              markedQuestions.has(getCurrentGlobalIndex()) 
+                ? "bg-amber-100 text-amber-600 hover:bg-amber-200" 
+                : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <Flag className="w-4 h-4 ml-1" />
+            {markedQuestions.has(getCurrentGlobalIndex()) ? "معلم" : "تعليم"}
+          </Button>
+        </div>
 
-            {/* قسم Abacus 1 */}
-            {activeSection === 1 && (
-              <AbacusQuestion
-                column={abacusColumns1[activeQuestion]}
-                answer={abacusAnswers1[activeQuestion]}
-                onAnswer={(val) => {
-                  const newAnswers = [...abacusAnswers1];
-                  newAnswers[activeQuestion] = val;
-                  setAbacusAnswers1(newAnswers);
-                }}
-                onKeyDown={handleKeyDown}
-                inputRef={inputRef}
-              />
-            )}
+        {/* قسم الضرب */}
+        {activeSection === 0 && (
+          <MultiplicationQuestion
+            problem={multiplicationProblems[activeQuestion]}
+            answer={multiplicationAnswers[activeQuestion]}
+            onAnswer={(val) => {
+              const newAnswers = [...multiplicationAnswers];
+              newAnswers[activeQuestion] = val;
+              setMultiplicationAnswers(newAnswers);
+            }}
+            onKeyDown={handleKeyDown}
+            inputRef={inputRef}
+          />
+        )}
 
-            {/* قسم Abacus 2 */}
-            {activeSection === 2 && (
-              <AbacusQuestion
-                column={abacusColumns2[activeQuestion]}
-                answer={abacusAnswers2[activeQuestion]}
-                onAnswer={(val) => {
-                  const newAnswers = [...abacusAnswers2];
-                  newAnswers[activeQuestion] = val;
-                  setAbacusAnswers2(newAnswers);
-                }}
-                onKeyDown={handleKeyDown}
-                inputRef={inputRef}
-              />
-            )}
+        {/* قسم Abacus 1 */}
+        {activeSection === 1 && (
+          <AbacusQuestion
+            column={abacusColumns1[activeQuestion]}
+            answer={abacusAnswers1[activeQuestion]}
+            onAnswer={(val) => {
+              const newAnswers = [...abacusAnswers1];
+              newAnswers[activeQuestion] = val;
+              setAbacusAnswers1(newAnswers);
+            }}
+            onKeyDown={handleKeyDown}
+            inputRef={inputRef}
+          />
+        )}
 
-            {/* قسم Mental */}
-            {activeSection === 3 && (
-              <MentalQuestion
-                column={mentalColumns[activeQuestion]}
-                answer={mentalAnswers[activeQuestion]}
-                onAnswer={(val) => {
-                  const newAnswers = [...mentalAnswers];
-                  newAnswers[activeQuestion] = val;
-                  setMentalAnswers(newAnswers);
-                }}
-                onKeyDown={handleKeyDown}
-                inputRef={inputRef}
-              />
-            )}
+        {/* قسم Abacus 2 */}
+        {activeSection === 2 && (
+          <AbacusQuestion
+            column={abacusColumns2[activeQuestion]}
+            answer={abacusAnswers2[activeQuestion]}
+            onAnswer={(val) => {
+              const newAnswers = [...abacusAnswers2];
+              newAnswers[activeQuestion] = val;
+              setAbacusAnswers2(newAnswers);
+            }}
+            onKeyDown={handleKeyDown}
+            inputRef={inputRef}
+          />
+        )}
 
-            {/* قسم إضافي */}
-            {activeSection === 4 && (
-              <MentalQuestion
-                column={additionalColumns[activeQuestion]}
-                answer={additionalAnswers[activeQuestion]}
-                onAnswer={(val) => {
-                  const newAnswers = [...additionalAnswers];
-                  newAnswers[activeQuestion] = val;
-                  setAdditionalAnswers(newAnswers);
-                }}
-                onKeyDown={handleKeyDown}
-                inputRef={inputRef}
-              />
-            )}
-          </CardContent>
-        </Card>
+        {/* قسم Mental */}
+        {activeSection === 3 && (
+          <MentalQuestion
+            column={mentalColumns[activeQuestion]}
+            answer={mentalAnswers[activeQuestion]}
+            onAnswer={(val) => {
+              const newAnswers = [...mentalAnswers];
+              newAnswers[activeQuestion] = val;
+              setMentalAnswers(newAnswers);
+            }}
+            onKeyDown={handleKeyDown}
+            inputRef={inputRef}
+          />
+        )}
+
+        {/* قسم إضافي */}
+        {activeSection === 4 && (
+          <MentalQuestion
+            column={additionalColumns[activeQuestion]}
+            answer={additionalAnswers[activeQuestion]}
+            onAnswer={(val) => {
+              const newAnswers = [...additionalAnswers];
+              newAnswers[activeQuestion] = val;
+              setAdditionalAnswers(newAnswers);
+            }}
+            onKeyDown={handleKeyDown}
+            inputRef={inputRef}
+          />
+        )}
       </main>
 
       {/* شريط التنقل السفلي */}
-      <footer className="bg-white/90 backdrop-blur-sm border-t shrink-0 px-4 py-2">
-        <div className="max-w-md mx-auto">
+      <footer className="bg-white/90 backdrop-blur-sm border-t shrink-0 px-4 py-3">
+        <div className="max-w-sm mx-auto">
           <div className="flex justify-between items-center gap-2">
             <Button
               variant="outline"
               onClick={navigatePrev}
               disabled={activeSection === 0 && activeQuestion === 0}
-              className="h-10 px-3 text-sm"
+              className="h-11 px-4 text-sm flex-1"
             >
               <ChevronRight className="w-4 h-4 ml-1" />
               السابق
@@ -663,7 +650,7 @@ export default function ExamPage() {
               <Button
                 variant="outline"
                 onClick={goToNextMarked}
-                className="h-10 px-3 text-sm bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-100"
+                className="h-11 px-3 text-sm bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-100"
               >
                 <Flag className="w-4 h-4 ml-1" />
                 {markedQuestions.size}
@@ -674,16 +661,16 @@ export default function ExamPage() {
             <Button
               variant="outline"
               onClick={() => setShowMarkedList(!showMarkedList)}
-              className="h-10 px-3 text-sm"
+              className="h-11 px-3 text-sm"
             >
               <List className="w-4 h-4 ml-1" />
-              الأسئلة
+              {getCurrentQuestionNumber()}/{getTotalQuestions()}
             </Button>
             
             {isLastQuestion() ? (
               <Button
                 onClick={handleFinishExam}
-                className="bg-emerald-600 hover:bg-emerald-700 h-10 px-3 text-sm"
+                className="bg-emerald-600 hover:bg-emerald-700 h-11 px-4 text-sm flex-1"
               >
                 <CheckCircle2 className="w-4 h-4 mr-1" />
                 إنهاء
@@ -691,48 +678,26 @@ export default function ExamPage() {
             ) : (
               <Button
                 onClick={navigateNext}
-                className="bg-emerald-600 hover:bg-emerald-700 h-10 px-3 text-sm"
+                className="bg-emerald-600 hover:bg-emerald-700 h-11 px-4 text-sm flex-1"
               >
                 التالي
                 <ChevronLeft className="w-4 h-4 mr-1" />
               </Button>
             )}
           </div>
-          
-          {/* نقاط التنقل */}
-          <div className="flex justify-center gap-1 mt-2 flex-wrap">
-            {Array.from({ length: getTotalQuestions() }).map((_, i) => {
-              const currentGlobal = getCurrentGlobalIndex();
-              const isMarked = markedQuestions.has(i);
-
-              return (
-                <button
-                  key={i}
-                  onClick={() => goToQuestion(i)}
-                  className={`relative w-2.5 h-2.5 rounded-full transition-all ${
-                    i === currentGlobal
-                      ? "bg-emerald-600 w-4"
-                      : isMarked
-                        ? "bg-amber-400"
-                        : "bg-gray-300"
-                  }`}
-                />
-              );
-            })}
-          </div>
         </div>
       </footer>
 
-      {/* قائمة الأسئلة المعلمة */}
+      {/* قائمة الأسئلة */}
       {showMarkedList && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowMarkedList(false)}>
           <Card className="w-full max-w-sm max-h-[70vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <CardHeader className="bg-gradient-to-r from-amber-500 to-orange-500 text-white py-3">
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-3 px-4">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Flag className="w-4 h-4" />
-                  الأسئلة المعلمة
-                </CardTitle>
+                <span className="font-bold flex items-center gap-2">
+                  <List className="w-4 h-4" />
+                  جميع الأسئلة
+                </span>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -742,35 +707,47 @@ export default function ExamPage() {
                   <X className="w-4 h-4" />
                 </Button>
               </div>
-            </CardHeader>
+            </div>
             <CardContent className="p-3 max-h-80 overflow-y-auto">
-              {markedQuestions.size === 0 ? (
-                <p className="text-center text-gray-500 py-4">لا توجد أسئلة معلمة</p>
-              ) : (
-                <div className="space-y-2">
-                  {Array.from(markedQuestions).sort((a, b) => a - b).map(globalIndex => {
-                    const { section, question } = getQuestionInfo(globalIndex);
-                    const currentGlobal = getCurrentGlobalIndex();
-                    
-                    return (
-                      <Button
-                        key={globalIndex}
-                        variant="outline"
-                        onClick={() => goToQuestion(globalIndex)}
-                        className={`w-full justify-start h-12 ${
-                          globalIndex === currentGlobal ? "border-emerald-500 bg-emerald-50" : ""
-                        }`}
-                      >
-                        <Flag className="w-4 h-4 ml-2 text-amber-500" />
-                        <span className="font-bold ml-2">{globalIndex + 1}</span>
-                        <span className="text-gray-500 text-sm">
-                          {sections[section].icon} {sections[section].name} - سؤال {question + 1}
-                        </span>
-                      </Button>
-                    );
-                  })}
+              <div className="grid grid-cols-5 gap-2">
+                {Array.from({ length: getTotalQuestions() }).map((_, i) => {
+                  const currentGlobal = getCurrentGlobalIndex();
+                  const isMarked = markedQuestions.has(i);
+                  const { section: s } = getQuestionInfo(i);
+                  
+                  return (
+                    <Button
+                      key={i}
+                      variant="outline"
+                      onClick={() => goToQuestion(i)}
+                      className={`h-10 w-full p-0 flex flex-col items-center justify-center relative ${
+                        i === currentGlobal 
+                          ? "border-2 border-emerald-500 bg-emerald-50" 
+                          : isMarked 
+                            ? "bg-amber-50 border-amber-300" 
+                            : ""
+                      }`}
+                    >
+                      <span className="font-bold text-sm">{i + 1}</span>
+                      {isMarked && (
+                        <Flag className="w-3 h-3 text-amber-500 absolute top-0.5 right-0.5" />
+                      )}
+                    </Button>
+                  );
+                })}
+              </div>
+              
+              {/* خريطة الألوان */}
+              <div className="flex justify-center gap-4 mt-4 pt-3 border-t text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 rounded bg-amber-400"></div>
+                  <span>معلم</span>
                 </div>
-              )}
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 rounded border-2 border-emerald-500"></div>
+                  <span>حالي</span>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -794,16 +771,16 @@ function MultiplicationQuestion({
   inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
-    <div className="text-center">
-      <div className="flex items-center justify-center gap-3 text-2xl font-bold mb-4">
+    <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-6">
+      <div className="flex items-center justify-center gap-4 text-4xl font-bold mb-6">
         <span className="text-gray-700">{problem.num1}</span>
-        <span className="text-emerald-600 text-xl">✕</span>
+        <span className="text-emerald-500 text-3xl">×</span>
         <span className="text-gray-700">{problem.num2}</span>
       </div>
       
-      <div className="border-t-2 border-emerald-200 pt-4">
-        <div className="flex items-center justify-center gap-2 text-xl font-bold">
-          <span className="text-emerald-600">=</span>
+      <div className="border-t-2 border-dashed border-gray-200 pt-6">
+        <div className="flex items-center justify-center gap-3">
+          <span className="text-emerald-500 text-2xl font-bold">=</span>
           <NumberInput
             value={answer}
             onChange={onAnswer}
@@ -832,12 +809,12 @@ function AbacusQuestion({
   inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
-    <div className="text-center">
-      <div className="bg-gray-50 rounded-lg p-3 mb-4">
-        <div className="space-y-1.5">
+    <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-6">
+      <div className="bg-gray-50 rounded-xl p-4 mb-6">
+        <div className="space-y-2">
           {column.numbers.map((num, i) => (
-            <div key={i} className="flex items-center justify-center border-b border-gray-200 pb-1.5 last:border-0 last:pb-0">
-              <span className={`inline-block w-16 py-1 rounded text-base font-bold ${
+            <div key={i} className="flex items-center justify-center border-b border-gray-200 pb-2 last:border-0 last:pb-0">
+              <span className={`inline-block w-20 py-1.5 rounded-lg text-center text-lg font-bold ${
                 num < 0 
                   ? "bg-red-100 text-red-600" 
                   : "bg-emerald-100 text-emerald-600"
@@ -849,8 +826,8 @@ function AbacusQuestion({
         </div>
       </div>
       
-      <div className="border-t-2 border-emerald-200 pt-4">
-        <p className="text-gray-500 text-sm mb-2">الناتج:</p>
+      <div className="border-t-2 border-dashed border-gray-200 pt-6">
+        <p className="text-gray-400 text-sm mb-3 text-center">الناتج</p>
         <div className="flex items-center justify-center">
           <NumberInput
             value={answer}
@@ -880,12 +857,12 @@ function MentalQuestion({
   inputRef: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
-    <div className="text-center">
-      <div className="bg-gray-50 rounded-lg p-3 mb-4">
-        <div className="space-y-1.5">
+    <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg p-6">
+      <div className="bg-gray-50 rounded-xl p-4 mb-6">
+        <div className="space-y-2">
           {column.numbers.map((num, i) => (
-            <div key={i} className="flex items-center justify-center border-b border-gray-200 pb-1.5 last:border-0 last:pb-0">
-              <span className={`inline-block w-14 py-1 rounded text-sm font-bold ${
+            <div key={i} className="flex items-center justify-center border-b border-gray-200 pb-2 last:border-0 last:pb-0">
+              <span className={`inline-block w-16 py-1 rounded-lg text-center text-base font-bold ${
                 num < 0 
                   ? "bg-red-100 text-red-600" 
                   : "bg-violet-100 text-violet-600"
@@ -897,8 +874,8 @@ function MentalQuestion({
         </div>
       </div>
       
-      <div className="border-t-2 border-violet-200 pt-4">
-        <p className="text-gray-500 text-sm mb-2">الناتج:</p>
+      <div className="border-t-2 border-dashed border-gray-200 pt-6">
+        <p className="text-gray-400 text-sm mb-3 text-center">الناتج</p>
         <div className="flex items-center justify-center">
           <NumberInput
             value={answer}
@@ -932,14 +909,12 @@ function ResultSection({
 
   return (
     <Card className={`shadow ${className}`}>
-      <CardHeader className="py-2 px-3 bg-gray-50">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-xs">{title}</CardTitle>
-          <Badge variant={correct === total ? "default" : "secondary"} className={`text-xs ${correct === total ? "bg-emerald-600" : ""}`}>
-            {correct}/{total}
-          </Badge>
-        </div>
-      </CardHeader>
+      <div className="py-2 px-3 bg-gray-50 flex items-center justify-between">
+        <span className="text-xs font-medium">{title}</span>
+        <Badge variant={correct === total ? "default" : "secondary"} className={`text-xs ${correct === total ? "bg-emerald-600" : ""}`}>
+          {correct}/{total}
+        </Badge>
+      </div>
       <CardContent className="p-2">
         <div className="grid grid-cols-5 gap-1">
           {results.map((isCorrect, i) => (
